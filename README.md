@@ -1,98 +1,147 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Kien Dinh ECM Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Hệ thống Backend (NestJS + Prisma + Neon Serverless Postgres) cho dự án Kien Dinh ECM. 
+Tập trung vào tính ổn định, dễ dàng scale (kiến trúc Module), và bảo mật (JWT Access + Refresh Token).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 1. Công nghệ sử dụng
+- **Framework:** NestJS (TypeScript).
+- **Database ORM:** Prisma.
+- **Database Engine:** Neon Postgres (Serverless).
+- **Authentication:** JWT (Passport) tích hợp cơ chế Refresh Token.
+- **Validation & Serialization:** `class-validator`, `class-transformer`.
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 2. Kiến trúc luồng xử lý (Request Flow)
 
-## Project setup
+Mọi HTTP Request từ Client gọi lên Server sẽ đi qua các lớp (Layers) bảo vệ và xử lý lỗi đồng nhất trước khi tới Logic chính, giúp code gọn gàng và không lặp lại.
 
-```bash
-$ pnpm install
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Main as main.ts
+    participant Guard as JwtAuthGuard
+    participant Interceptor as TransformInterceptor
+    participant Controller
+    participant Service
+    participant Prisma as Prisma (DB)
+    participant ExceptionFilter as Global Exception Filter
+    
+    Client->>Main: HTTP Request (VD: POST /auth/me)
+    Main->>Guard: Kiểm tra Access Token
+    
+    alt Token không hợp lệ
+        Guard-->>ExceptionFilter: Ném UnauthorizedException
+        ExceptionFilter-->>Client: Trả về lỗi chuẩn hóa { success: false, ... }
+    else Token hợp lệ (Hoặc API @Public)
+        Guard->>Controller: Chuyển tiếp Request
+        Controller->>Service: Gọi Business Logic
+        Service->>Prisma: Query Database
+        
+        alt Lỗi Database (Trùng lặp, Không tồn tại...)
+            Prisma-->>ExceptionFilter: PrismaClientKnownRequestError
+            ExceptionFilter-->>Client: Map lỗi sang mã HTTP & Trả về Client
+        else Lỗi Logic
+            Service-->>ExceptionFilter: Ném HttpException
+            ExceptionFilter-->>Client: Trả về lỗi chuẩn hóa
+        else Thành công
+            Prisma-->>Service: Dữ liệu DB
+            Service-->>Controller: Return Data
+            Controller->>Interceptor: Return Data
+            Interceptor-->>Client: Chuẩn hóa Format { success: true, data: {...} }
+        end
+    end
 ```
 
-## Compile and run the project
+---
 
-```bash
-# development
-$ pnpm run start
+## 3. Cấu trúc thư mục (Folder Structure)
 
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+```text
+src/
+├── app.module.ts              # Root Module (Nơi đăng ký Global Provider)
+├── main.ts                    # Entry point (Cấu hình CORS, Global Pipes, Filters, Interceptors)
+│
+├── common/                    # Core dùng chung toàn hệ thống
+│   ├── constants/             # Định nghĩa Error Codes, App Messages
+│   ├── decorators/            # Custom Decorators (@Public, @CurrentUser)
+│   ├── filters/               # Bắt và chuẩn hóa lỗi (HttpException, PrismaException)
+│   ├── guards/                # Bảo vệ API (JwtAuthGuard)
+│   ├── interceptors/          # Chuẩn hóa format Output cho Frontend
+│   └── utils/                 # Các hàm tiện ích (Bcrypt Hash)
+│
+├── core/
+│   └── config/                # Cấu hình siêu chặt chẽ cho biến môi trường (.env)
+│
+├── database/                  # Tầng kết nối Database
+│   ├── prisma.service.ts      # Khởi tạo Prisma Client
+│   └── prisma.module.ts       # Được đánh dấu @Global() để dùng ở mọi Module
+│
+└── modules/                   # Các tính năng nghiệp vụ (Business Logic)
+    ├── auth/                  # Xử lý Login, Refresh Token, Logout
+    └── users/                 # Quản lý Users (Lấy thông tin)
 ```
 
-## Run tests
+---
 
+## 4. Luồng Authentication (Access Token & Refresh Token)
+
+Hệ thống sử dụng cơ chế bảo mật cao cấp 2 lớp Token:
+
+1. **Access Token** (Sống 15 phút):
+   - Dùng để gửi kèm trên Header `Authorization: Bearer <token>` để truy cập API bảo mật.
+2. **Refresh Token** (Sống 7 ngày):
+   - Sinh ra cùng lúc khi Login.
+   - Bị băm (Hash) bằng Bcrypt và lưu xuống Database.
+   - Khi Access Token hết hạn, Frontend gửi Refresh Token lên endpoint `POST /auth/refresh` để xin 1 cặp Token mới.
+   - Khi người dùng Logout, hệ thống gán `refreshToken = null` trong DB. Token cũ trên máy nạn nhân (nếu có) lập tức vô giá trị (Revoked).
+
+---
+
+## 5. Quy chuẩn viết Code (Coding Conventions)
+
+1. **Format API Response chuẩn chung (do Interceptor lo):**
+   ```json
+   {
+     "success": true,
+     "statusCode": 200,
+     "data": { ... },
+     "timestamp": "2026-07-11T12:00:00.000Z"
+   }
+   ```
+2. **Bắt lỗi:** KHÔNG BAO GIỜ dùng `try-catch` lồng ghép bừa bãi trong Controller/Service để ép trả JSON lỗi. Mọi lỗi cứ `throw new HttpException` hoặc để tự Prisma ném lỗi. Lớp Filter (`http-exception.filter.ts` & `prisma-client-exception.filter.ts`) sẽ lo bắt và chuẩn hóa thành format:
+   ```json
+   {
+     "success": false,
+     "statusCode": 400,
+     "errorCode": "INVALID_CREDENTIALS",
+     "message": "Mật khẩu không chính xác.",
+     "timestamp": "...",
+     "path": "/api/v1/auth/login"
+   }
+   ```
+3. **Comment:** Chỉ viết JSDoc bằng tiếng Việt ngắn gọn, xúc tích (1-2 dòng) mô tả chức năng của hàm ở bên trên định nghĩa hàm. Tránh bình luận lê thê bên trong thân logic (inline comments).
+4. **Export Constants:** Tất cả thông báo lỗi và error codes phải tập trung ở `common/constants` để dễ dàng bảo trì hoặc hỗ trợ i18n sau này.
+
+---
+
+## 6. Hướng dẫn chạy dự án
+
+**Cài đặt:**
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm install
 ```
 
-## Deployment
+**Môi trường (.env):**
+Copy file `.env.example` thành `.env` và điền đủ các thông tin: `DATABASE_URL`, `JWT_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_SECRET`, `JWT_REFRESH_EXPIRES_IN`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
+**Chạy Database Migration & Seed:**
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+npx prisma db push       # Hoặc npx prisma migrate dev
+pnpm run seed            # Bơm tài khoản admin mồi
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+**Khởi chạy Dev:**
+```bash
+pnpm run start:dev
+```
