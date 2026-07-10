@@ -83,3 +83,6 @@ This is a NestJS 11 backend for an industrial ECM (equipment/content management)
 - **1-1 vertical partitioning** is used consistently: lightweight list models (`Product`, `Project`) are separated from their detail counterparts to keep list-scan queries fast.
 - **Slug fields** are present on all content models and must be unique — use them as public URL identifiers.
 - **Many-to-many via explicit join tables** (`ProjectProduct`, `ProjectCategory`) rather than Prisma implicit M2M, allowing future extension of the join rows.
+
+**CRITICAL WORKFLOW**:
+Always read and strictly follow the [workflow rules](.claude/rules/workflow.md) before proposing plans or making any code changes.
