@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "cloudinary-docs": {
+      "source": "cloudinary-devs/skills",
+      "sourceType": "github",
+      "skillPath": "skills/cloudinary-docs/SKILL.md",
+      "computedHash": "2035bffb3ae42e704e01d4da43c28aa0f6c904dd70dd8f35a4b7a19af5c1f2bf"
+    },
     "neon": {
       "source": "neondatabase/agent-skills",
       "sourceType": "github",
