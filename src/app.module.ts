@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './database/prisma.module';
@@ -12,6 +12,8 @@ import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { HealthModule } from './modules/health/health.module';
+import { LoggerMiddleware } from './common/middlewares/logger.middleware';
 
 /**
  * Module gốc của ứng dụng NestJS.
@@ -27,6 +29,7 @@ import { UploadModule } from './modules/upload/upload.module';
     UsersModule,
     AuthModule,
     UploadModule,
+    HealthModule,
   ],
   controllers: [],
   providers: [
@@ -53,4 +56,8 @@ import { UploadModule } from './modules/upload/upload.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(LoggerMiddleware).forRoutes('{*path}');
+  }
+}
