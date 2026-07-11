@@ -21,11 +21,20 @@ export const AppMessages = {
     PROFILE_NOT_FOUND: 'Không tìm thấy thông tin tài khoản.',
   },
 
+  // Upload Messages
+  UPLOAD: {
+    FILE_NOT_FOUND: 'Không tìm thấy file tải lên.',
+    INVALID_FORMAT: 'Chỉ chấp nhận file định dạng hình ảnh.',
+    BG_REMOVAL_ERROR: 'Lỗi khi xử lý xóa phông hình ảnh.',
+    CLOUDINARY_ERROR: 'Lỗi khi tải ảnh lên Cloudinary: ',
+  },
+
   // Database / System Messages
   SYSTEM: {
     INTERNAL_SERVER_ERROR: 'Lỗi hệ thống nội bộ, vui lòng thử lại sau.',
     RECORD_NOT_FOUND: 'Không tìm thấy bản ghi dữ liệu yêu cầu.',
     FOREIGN_KEY_VIOLATION: 'Tham chiếu dữ liệu không hợp lệ (Lỗi khóa ngoại).',
-    UNIQUE_CONSTRAINT: (field: string) => `Trùng lặp dữ liệu: Trường '${field}' đã tồn tại.`,
-  }
+    UNIQUE_CONSTRAINT: (field: string) =>
+      `Trùng lặp dữ liệu: Trường '${field}' đã tồn tại.`,
+  },
 };

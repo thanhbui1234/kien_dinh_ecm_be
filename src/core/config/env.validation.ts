@@ -1,5 +1,11 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsNumber, IsString, validateSync } from 'class-validator';
+import {
+  IsEnum,
+  IsNumber,
+  IsString,
+  IsNotEmpty,
+  validateSync,
+} from 'class-validator';
 
 /**
  * Application environment definitions.
@@ -33,7 +39,20 @@ class EnvironmentVariables {
   JWT_REFRESH_SECRET: string;
 
   @IsString()
+  @IsNotEmpty()
   JWT_REFRESH_EXPIRES_IN: string;
+
+  @IsString()
+  @IsNotEmpty()
+  CLOUDINARY_CLOUD_NAME: string;
+
+  @IsString()
+  @IsNotEmpty()
+  CLOUDINARY_API_KEY: string;
+
+  @IsString()
+  @IsNotEmpty()
+  CLOUDINARY_API_SECRET: string;
 }
 
 /**

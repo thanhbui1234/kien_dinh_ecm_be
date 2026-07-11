@@ -2,36 +2,41 @@
 trigger: always_on
 ---
 
-# CRITICAL WORKFLOW: MANDATORY CONFIRMATION & PRE-CHECK RULE
+# SYSTEM RULE: PRE-IMPLEMENTATION PROTOCOL & USER CONFIRMATION
 
-## 1. CORE PRINCIPLE
-- **NEVER** automatically implement changes, create files, or modify code upon receiving a user prompt.
-- **NEVER** assume requirements. If anything is ambiguous, you must ask for clarification first.
-- **ALWAYS** perform a thorough pre-check of the existing project state before proposing any solution.
+## CRITICAL MANDATE
+You are STRICTLY FORBIDDEN from automatically implementing, modifying, or accepting any code changes immediately after receiving a user prompt. You MUST execute the following verification, Swagger-check, and confirmation protocol first.
 
-## 2. PRE-IMPLEMENTATION PHASE (MANDATORY CHECKS)
-Before responding with a plan or code, you must internally analyze and verify:
-1. **Folder Structure:** Check the existing folder layout, architecture (e.g., NestJS modules, Clean Architecture), and where the new code *should* logically belong.
-2. **Coding Syntax & Style:** Inspect existing files to match the exact coding style, naming conventions (camelCase, PascalCase, snake_case), TypeScript configurations, and patterns used in this project.
-3. **Existing Rules:** Adhere to any other rule files defined in `.agents/rules/` or `CLAUDE.md`.
+---
 
-## 3. DOUBT RESOLUTION & CLARIFICATION
-- If there is **ANY** ambiguity, missing edge cases, or potential conflict with the current architecture, you **MUST** list your questions and doubts to the user first.
-- Do not make executive decisions on architectural design without asking.
+## PHASE 1: MANDATORY PROJECT INSPECTION (LOOK BEFORE YOU LEAP)
+Before responding with any implementation plan or code:
+1. **Analyze Folder Structure:** Scan the project's current directory tree to understand where files belong.
+2. **Review Existing Syntax & Patterns:** Check existing files to maintain consistency in style (e.g., NestJS DI patterns, naming conventions, formatting).
+3. **Inspect Swagger Configuration:** Check how Swagger/OpenAPI is implemented in the project. Identify the required decorators (e.g., `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiProperty`) to ensure new or modified APIs match the existing documentation style.
+4. **Check Project Rules:** Read existing `CLAUDE.md` or `.agents/rules/` to ensure no conflicts.
 
-## 4. PROPOSAL & MANDATORY USER CONFIRMATION
-Before writing a single line of code or running modification tools, you must present a response in this exact format:
+---
 
-### 🔍 Current State Analysis
-- **Observed Pattern:** [Briefly state the project's folder structure and syntax style you observed]
-- **Potential Issues/Doubts:** [List any questions, edge cases, or concerns. If none, state "None"]
+## PHASE 2: CLARIFICATION & DOUBLE-CHECK
+If there is ANY ambiguity, missing edge case, potential conflict, or doubt in the user's request:
+- **STOP IMMEDIATELY.**
+- List your questions or concerns clearly to the user.
+- **Do not assume or make execution choices on behalf of the user.**
 
-### 📝 Proposed Plan
-- **Files to Create/Modify:** [List the exact file paths]
-- **Implementation Strategy:** [Briefly bullet-point what you will do]
+---
 
-### ⚠️ Awaiting Confirmation
-- **"I have not modified any files yet. Please review the plan above. Type 'YES' or provide feedback to proceed."**
+## PHASE 3: THE GATEKEEPER (MANDATORY USER CONFIRMATION)
+Even if the requirement is 100% clear, you MUST present a summary of your plan to the user first.
 
-## 5. EXECUTION PHASE
-- You are strictly **PROHIBITED** from executing the plan until the user explicitly responds with "YES", "confirm", or approves your proposal.
+Your response MUST end with a strict hold, using this exact format:
+```text
+🔍 [Summary of your understanding of the current project structure and affected files]
+
+💡 [Brief proposed solution/implementation approach]
+
+📝 [Detailed plan for updating or adding Swagger Docs for the relevant APIs/DTOs]
+
+❓ [Any lingering questions, potential risks, or open items needing clarification]
+
+🛑 AWAITING CONFIRMATION: Please review and approve the plan above. I will NOT proceed with any code modifications or file creations until I receive explicit approval (e.g., "OK", "Proceed", "Go ahead", or specific feedback).

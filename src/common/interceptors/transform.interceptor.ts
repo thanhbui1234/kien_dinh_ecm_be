@@ -20,7 +20,10 @@ export interface Response<T> {
  * Tự động format thành { success, statusCode, data, meta... }
  */
 @Injectable()
-export class TransformInterceptor<T> implements NestInterceptor<T, Response<T>> {
+export class TransformInterceptor<T> implements NestInterceptor<
+  T,
+  Response<T>
+> {
   intercept(
     context: ExecutionContext,
     next: CallHandler,
@@ -31,8 +34,12 @@ export class TransformInterceptor<T> implements NestInterceptor<T, Response<T>> 
 
     return next.handle().pipe(
       map((result) => {
-        const isPaginated = result && typeof result === 'object' && ('meta' in result) && ('data' in result);
-        
+        const isPaginated =
+          result &&
+          typeof result === 'object' &&
+          'meta' in result &&
+          'data' in result;
+
         return {
           success: true,
           statusCode,
@@ -44,4 +51,3 @@ export class TransformInterceptor<T> implements NestInterceptor<T, Response<T>> 
     );
   }
 }
-

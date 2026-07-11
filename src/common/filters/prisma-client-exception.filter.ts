@@ -17,15 +17,17 @@ export class PrismaClientExceptionFilter extends BaseExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    
+
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = AppMessages.SYSTEM.INTERNAL_SERVER_ERROR;
     let errorCode: string = ErrorCode.INTERNAL_SERVER_ERROR;
-    
+
     switch (exception.code) {
       case 'P2002':
         status = HttpStatus.CONFLICT;
-        message = AppMessages.SYSTEM.UNIQUE_CONSTRAINT(exception.meta?.target as string);
+        message = AppMessages.SYSTEM.UNIQUE_CONSTRAINT(
+          exception.meta?.target as string,
+        );
         errorCode = ErrorCode.UNIQUE_CONSTRAINT_VIOLATION;
         break;
       case 'P2025':
@@ -42,7 +44,9 @@ export class PrismaClientExceptionFilter extends BaseExceptionFilter {
         break;
     }
 
-    this.logger.error(`[${request.method}] ${request.url} - Prisma Error ${exception.code}: ${message}`);
+    this.logger.error(
+      `[${request.method}] ${request.url} - Prisma Error ${exception.code}: ${message}`,
+    );
 
     response.status(status).json({
       success: false,
@@ -54,5 +58,3 @@ export class PrismaClientExceptionFilter extends BaseExceptionFilter {
     });
   }
 }
-
-

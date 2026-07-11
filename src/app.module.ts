@@ -10,6 +10,7 @@ import { PrismaClientExceptionFilter } from './common/filters/prisma-client-exce
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { UploadModule } from './modules/upload/upload.module';
 
 /**
  * Module gốc của ứng dụng NestJS.
@@ -24,6 +25,7 @@ import { UsersModule } from './modules/users/users.module';
     PrismaModule,
     UsersModule,
     AuthModule,
+    UploadModule,
   ],
   controllers: [],
   providers: [
@@ -47,4 +49,3 @@ import { UsersModule } from './modules/users/users.module';
   ],
 })
 export class AppModule {}
-
