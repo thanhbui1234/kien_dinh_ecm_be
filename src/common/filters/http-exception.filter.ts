@@ -24,17 +24,23 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     const status = exception.getStatus();
-    const exceptionResponse: any = exception.getResponse();
+    const exceptionResponse = exception.getResponse() as
+      string | Record<string, unknown>;
 
     let errorCode = HttpStatus[status] || ErrorCode.INTERNAL_SERVER_ERROR;
     let message: string | string[] = AppMessages.SYSTEM.INTERNAL_SERVER_ERROR;
 
     if (typeof exceptionResponse === 'string') {
       message = exceptionResponse;
-    } else if (typeof exceptionResponse === 'object') {
-      message = exceptionResponse.message || message;
-      if (exceptionResponse.errorCode) {
-        errorCode = exceptionResponse.errorCode;
+    } else if (
+      typeof exceptionResponse === 'object' &&
+      exceptionResponse !== null
+    ) {
+      if ('message' in exceptionResponse && exceptionResponse.message) {
+        message = exceptionResponse.message as string | string[];
+      }
+      if ('errorCode' in exceptionResponse && exceptionResponse.errorCode) {
+        errorCode = exceptionResponse.errorCode as string;
       }
     }
 

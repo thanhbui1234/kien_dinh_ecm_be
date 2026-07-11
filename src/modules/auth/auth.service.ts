@@ -25,6 +25,7 @@ export class AuthService {
       this.jwtService.signAsync(payload),
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
         expiresIn: this.configService.get<string>(
           'JWT_REFRESH_EXPIRES_IN',
           '7d',
@@ -78,9 +79,12 @@ export class AuthService {
   async refreshTokens(refreshToken: string) {
     try {
       // Xác thực token có hợp lệ không
-      const payload = await this.jwtService.verifyAsync(refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      });
+      const payload = await this.jwtService.verifyAsync<{ sub: string }>(
+        refreshToken,
+        {
+          secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        },
+      );
 
       // Lấy thông tin user (gồm cả hashed refresh token trong DB)
       const user = await this.usersService.findById(payload.sub);
@@ -109,7 +113,7 @@ export class AuthService {
       await this.usersService.updateRefreshToken(user.id, hashedRefreshToken);
 
       return tokens;
-    } catch (e) {
+    } catch {
       throw new UnauthorizedException({
         message: AppMessages.AUTH.INVALID_REFRESH_TOKEN,
         errorCode: ErrorCode.INVALID_REFRESH_TOKEN,

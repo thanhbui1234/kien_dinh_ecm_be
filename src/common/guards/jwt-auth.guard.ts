@@ -31,16 +31,18 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     return super.canActivate(context);
   }
 
-  handleRequest(err: any, user: any, info: any) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+  handleRequest<TUser = any>(err: any, user: any, info: any, context: ExecutionContext, status?: any): TUser {
     if (err || !user) {
-      throw (
-        err ||
-        new UnauthorizedException({
-          message: AppMessages.AUTH.UNAUTHORIZED_OR_EXPIRED,
-          errorCode: 'UNAUTHORIZED',
-        })
-      );
+      if (err instanceof Error) {
+        throw err;
+      }
+      throw new UnauthorizedException({
+        message: AppMessages.AUTH.UNAUTHORIZED_OR_EXPIRED,
+        errorCode: 'UNAUTHORIZED',
+      });
     }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return user;
   }
 }
