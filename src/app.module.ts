@@ -4,6 +4,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './database/prisma.module';
 import { validateConfig } from './core/config/env.validation';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { PrismaClientExceptionFilter } from './common/filters/prisma-client-exception.filter';
@@ -33,6 +34,10 @@ import { UploadModule } from './modules/upload/upload.module';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
     {
       provide: APP_INTERCEPTOR,

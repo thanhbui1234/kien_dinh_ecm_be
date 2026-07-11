@@ -57,11 +57,24 @@ This is a NestJS 11 backend for an industrial ECM (equipment/content management)
 3. Errors should be thrown as `HttpException` (from `@nestjs/common`). DO NOT wrap everything in `try-catch`. The global filters will catch and format them into standard responses.
 4. `TransformInterceptor` automatically maps responses into `{ success: true, statusCode: 200, data: {...}, timestamp }`.
 
+## API Documentation (Swagger)
+
+- Swagger UI is automatically generated and served at `/api/docs`.
+- The project uses the `@nestjs/swagger` CLI plugin (enabled in `nest-cli.json`). This means you **do not** need to manually add `@ApiProperty()` to every DTO field; TypeScript types are extracted automatically.
+- Controllers should still be annotated with `@ApiTags`, `@ApiOperation`, and `@ApiBearerAuth` to organize the UI clearly.
+
 ## Authentication (Dual Token Pattern)
 
 - `POST /auth/login` returns `accessToken` and `refreshToken`. The refresh token is hashed via bcrypt and saved to the `User` table.
 - `POST /auth/refresh` requires `refreshToken` and issues a new token pair if the hash matches.
 - `POST /auth/logout` sets `refreshToken` to `null` in DB, effectively revoking the session.
+
+## File Uploads & AI Background Removal
+
+- Handled by `UploadModule` (`/api/v1/upload`).
+- Files are streamed directly to Cloudinary using `cloudinary.uploader.upload_stream` to prevent heavy disk I/O.
+- We support local AI background removal using `@imgly/background-removal-node` if `bgOption=transparent` is passed in the `multipart/form-data`.
+- Constants (like Cloudinary folder name, mime-type validation, and `BgOption` enum) are kept in `src/modules/upload/constants/upload.constant.ts`.
 
 ## Database (Prisma + Neon)
 
