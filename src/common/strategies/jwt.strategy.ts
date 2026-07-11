@@ -20,7 +20,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: any) {
+  async validate(payload: { sub: string; email: string; role: string }) {
     // Truy vấn CSDL để đảm bảo user vẫn còn tồn tại (chưa bị xoá hoặc khoá)
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
