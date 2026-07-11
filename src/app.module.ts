@@ -12,6 +12,7 @@ import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { HealthModule } from './modules/health/health.module';
 import { LoggerMiddleware } from './common/middlewares/logger.middleware';
 
 /**
@@ -28,6 +29,7 @@ import { LoggerMiddleware } from './common/middlewares/logger.middleware';
     UsersModule,
     AuthModule,
     UploadModule,
+    HealthModule,
   ],
   controllers: [],
   providers: [
