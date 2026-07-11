@@ -1,147 +1,246 @@
 # Kien Dinh ECM Backend
 
-Hệ thống Backend (NestJS + Prisma + Neon Serverless Postgres) cho dự án Kien Dinh ECM. 
+Hệ thống Backend (NestJS + Prisma + Neon Serverless Postgres) cho dự án Kien Dinh ECM.  
 Tập trung vào tính ổn định, dễ dàng scale (kiến trúc Module), và bảo mật (JWT Access + Refresh Token).
 
+---
+
 ## 1. Công nghệ sử dụng
-- **Framework:** NestJS (TypeScript).
-- **Database ORM:** Prisma.
-- **Database Engine:** Neon Postgres (Serverless).
-- **Authentication:** JWT (Passport) tích hợp cơ chế Refresh Token.
-- **Validation & Serialization:** `class-validator`, `class-transformer`.
+
+| Công nghệ | Mô tả |
+|-----------|-------|
+| **NestJS 11** | Framework TypeScript, kiến trúc Module |
+| **Prisma 7** | ORM với type-safety đầy đủ |
+| **Neon Postgres** | Serverless PostgreSQL |
+| **JWT (Passport)** | Access Token + Refresh Token |
+| **Cloudinary** | Upload & quản lý ảnh |
+| **Swagger** | Tự động sinh API docs tại `/api/docs` |
+| **Helmet** | HTTP security headers |
+| **class-validator** | Validation & serialization DTO |
 
 ---
 
 ## 2. Kiến trúc luồng xử lý (Request Flow)
 
-Mọi HTTP Request từ Client gọi lên Server sẽ đi qua các lớp (Layers) bảo vệ và xử lý lỗi đồng nhất trước khi tới Logic chính, giúp code gọn gàng và không lặp lại.
+Mọi HTTP Request từ Client gọi lên Server sẽ đi qua các lớp bảo vệ và xử lý lỗi đồng nhất:
 
 ```mermaid
 sequenceDiagram
     participant Client
-    participant Main as main.ts
-    participant Guard as JwtAuthGuard
+    participant Middleware as LoggerMiddleware
+    participant Guard as JwtAuthGuard / RolesGuard
     participant Interceptor as TransformInterceptor
     participant Controller
     participant Service
     participant Prisma as Prisma (DB)
-    participant ExceptionFilter as Global Exception Filter
-    
-    Client->>Main: HTTP Request (VD: POST /auth/me)
-    Main->>Guard: Kiểm tra Access Token
-    
+    participant Filter as Global Exception Filter
+
+    Client->>Middleware: HTTP Request
+    Middleware->>Guard: Log + forward
     alt Token không hợp lệ
-        Guard-->>ExceptionFilter: Ném UnauthorizedException
-        ExceptionFilter-->>Client: Trả về lỗi chuẩn hóa { success: false, ... }
-    else Token hợp lệ (Hoặc API @Public)
-        Guard->>Controller: Chuyển tiếp Request
-        Controller->>Service: Gọi Business Logic
-        Service->>Prisma: Query Database
-        
-        alt Lỗi Database (Trùng lặp, Không tồn tại...)
-            Prisma-->>ExceptionFilter: PrismaClientKnownRequestError
-            ExceptionFilter-->>Client: Map lỗi sang mã HTTP & Trả về Client
-        else Lỗi Logic
-            Service-->>ExceptionFilter: Ném HttpException
-            ExceptionFilter-->>Client: Trả về lỗi chuẩn hóa
+        Guard-->>Filter: UnauthorizedException
+        Filter-->>Client: { success: false, errorCode, message }
+    else Token hợp lệ (hoặc @Public)
+        Guard->>Controller: forward
+        Controller->>Service: Business Logic
+        Service->>Prisma: Query DB
+        alt Lỗi DB / Logic
+            Prisma-->>Filter: PrismaClientKnownRequestError / HttpException
+            Filter-->>Client: Chuẩn hóa lỗi
         else Thành công
-            Prisma-->>Service: Dữ liệu DB
-            Service-->>Controller: Return Data
-            Controller->>Interceptor: Return Data
-            Interceptor-->>Client: Chuẩn hóa Format { success: true, data: {...} }
+            Prisma-->>Service: Data
+            Service-->>Controller: Return
+            Controller->>Interceptor: Return
+            Interceptor-->>Client: { success: true, statusCode, data, timestamp }
         end
     end
 ```
 
 ---
 
-## 3. Cấu trúc thư mục (Folder Structure)
+## 3. Cấu trúc thư mục
 
 ```text
 src/
-├── app.module.ts              # Root Module (Nơi đăng ký Global Provider)
-├── main.ts                    # Entry point (Cấu hình CORS, Global Pipes, Filters, Interceptors)
+├── app.module.ts              # Root Module (Global Providers + LoggerMiddleware)
+├── main.ts                    # Entry point (CORS, Global Pipes, Prefix, Swagger)
 │
 ├── common/                    # Core dùng chung toàn hệ thống
-│   ├── constants/             # Định nghĩa Error Codes, App Messages
-│   ├── decorators/            # Custom Decorators (@Public, @CurrentUser)
-│   ├── filters/               # Bắt và chuẩn hóa lỗi (HttpException, PrismaException)
-│   ├── guards/                # Bảo vệ API (JwtAuthGuard)
-│   ├── interceptors/          # Chuẩn hóa format Output cho Frontend
-│   └── utils/                 # Các hàm tiện ích (Bcrypt Hash)
+│   ├── constants/             # Error Codes, App Messages
+│   ├── decorators/            # @Public, @CurrentUser, @Roles
+│   ├── filters/               # HttpExceptionFilter, PrismaClientExceptionFilter
+│   ├── guards/                # JwtAuthGuard, RolesGuard
+│   ├── interceptors/          # TransformInterceptor (chuẩn hóa output)
+│   ├── middlewares/           # LoggerMiddleware (log mọi HTTP request)
+│   ├── strategies/            # JwtStrategy (Passport)
+│   └── utils/                 # HashUtil (bcrypt)
 │
 ├── core/
-│   └── config/                # Cấu hình siêu chặt chẽ cho biến môi trường (.env)
+│   └── config/                # Env validation + Swagger setup
 │
-├── database/                  # Tầng kết nối Database
+├── database/
 │   ├── prisma.service.ts      # Khởi tạo Prisma Client
-│   └── prisma.module.ts       # Được đánh dấu @Global() để dùng ở mọi Module
+│   └── prisma.module.ts       # @Global() — dùng được ở mọi Module
 │
-└── modules/                   # Các tính năng nghiệp vụ (Business Logic)
-    ├── auth/                  # Xử lý Login, Refresh Token, Logout
-    └── users/                 # Quản lý Users (Lấy thông tin)
+└── modules/
+    ├── auth/                  # Login, Refresh Token, Logout, Me
+    ├── users/                 # Quản lý Users
+    ├── upload/                # Upload ảnh lên Cloudinary
+    └── health/                # Health check endpoint (keep-alive)
 ```
 
 ---
 
-## 4. Luồng Authentication (Access Token & Refresh Token)
+## 4. Luồng Authentication (Dual Token)
 
-Hệ thống sử dụng cơ chế bảo mật cao cấp 2 lớp Token:
+Hệ thống sử dụng cơ chế 2 lớp Token:
 
-1. **Access Token** (Sống 15 phút):
-   - Dùng để gửi kèm trên Header `Authorization: Bearer <token>` để truy cập API bảo mật.
-2. **Refresh Token** (Sống 7 ngày):
-   - Sinh ra cùng lúc khi Login.
-   - Bị băm (Hash) bằng Bcrypt và lưu xuống Database.
-   - Khi Access Token hết hạn, Frontend gửi Refresh Token lên endpoint `POST /auth/refresh` để xin 1 cặp Token mới.
-   - Khi người dùng Logout, hệ thống gán `refreshToken = null` trong DB. Token cũ trên máy nạn nhân (nếu có) lập tức vô giá trị (Revoked).
+| Token | TTL | Mục đích |
+|-------|-----|----------|
+| **Access Token** | `15m` | Gửi kèm `Authorization: Bearer <token>` để truy cập API |
+| **Refresh Token** | `7d` | Lưu dưới dạng bcrypt hash trong DB. Dùng để xin cặp token mới |
 
----
-
-## 5. Quy chuẩn viết Code (Coding Conventions)
-
-1. **Format API Response chuẩn chung (do Interceptor lo):**
-   ```json
-   {
-     "success": true,
-     "statusCode": 200,
-     "data": { ... },
-     "timestamp": "2026-07-11T12:00:00.000Z"
-   }
-   ```
-2. **Bắt lỗi:** KHÔNG BAO GIỜ dùng `try-catch` lồng ghép bừa bãi trong Controller/Service để ép trả JSON lỗi. Mọi lỗi cứ `throw new HttpException` hoặc để tự Prisma ném lỗi. Lớp Filter (`http-exception.filter.ts` & `prisma-client-exception.filter.ts`) sẽ lo bắt và chuẩn hóa thành format:
-   ```json
-   {
-     "success": false,
-     "statusCode": 400,
-     "errorCode": "INVALID_CREDENTIALS",
-     "message": "Mật khẩu không chính xác.",
-     "timestamp": "...",
-     "path": "/api/v1/auth/login"
-   }
-   ```
-3. **Comment:** Chỉ viết JSDoc bằng tiếng Việt ngắn gọn, xúc tích (1-2 dòng) mô tả chức năng của hàm ở bên trên định nghĩa hàm. Tránh bình luận lê thê bên trong thân logic (inline comments).
-4. **Export Constants:** Tất cả thông báo lỗi và error codes phải tập trung ở `common/constants` để dễ dàng bảo trì hoặc hỗ trợ i18n sau này.
+**Flow:**
+1. `POST /api/v1/auth/login` → Trả về `{ accessToken, refreshToken }`.
+2. `POST /api/v1/auth/refresh` → Nhận `refreshToken`, xác thực hash, trả về cặp token mới.
+3. `POST /api/v1/auth/logout` → Set `refreshToken = null` trong DB (revoke session).
 
 ---
 
-## 6. Hướng dẫn chạy dự án
+## 5. Database Schema (Prisma + Neon)
 
-**Cài đặt:**
+**Database:** PostgreSQL serverless trên Neon. `PrismaService` được expose globally qua `@Global()`.
+
+| Domain | Models | Ghi chú |
+|--------|--------|---------|
+| Admin auth | `User` | Roles: `SUPER_ADMIN`, `EDITOR`. Có field `refreshToken` (bcrypt hash). |
+| Catalog | `Category` | Self-relation đệ quy cho danh mục nhiều cấp. |
+| Products | `Product`, `ProductDetail`, `ProductImage` | Vertical partition: `Product` cho list-scan, `ProductDetail` chứa HTML + JSONB specs (1-1). |
+| Projects | `Project`, `ProjectDetail`, `ProjectProduct`, `ProjectCategory` | Showcase liên kết products + categories qua join table tường minh. |
+| Leads | `ContactRequest` | Status: `PENDING`, `CONTACTED`, `SPAM`. |
+| Recruitment | `JobPost`, `JobPostDetail` | Cùng pattern 1-1 split như Product. |
+| Config | `SystemSetting`, `CompanySlogan`, `CompanyTimeline` | Key-value site settings và About Us. |
+
+**Kiến trúc chính:**
+- **1-1 vertical partitioning**: Model nhẹ cho list-scan, model detail cho view chi tiết.
+- **Slug fields**: Có trên mọi content model, unique — dùng làm public URL identifier.
+- **Explicit M2M join tables**: Thay vì Prisma implicit M2M, cho phép mở rộng join-row sau này.
+
+---
+
+## 6. HTTP Request Logging
+
+Mọi HTTP request được tự động log ra console qua `LoggerMiddleware`:
+
+```
+[Nest] LOG [HTTP] POST /api/v1/auth/login 201 772 - PostmanRuntime/7.51.1 ::1 [487ms]
+```
+
+**Format:** `[METHOD] [URL] [STATUS] [size] - [User-Agent] [IP] [Xms]`
+
+- File: `src/common/middlewares/logger.middleware.ts`
+- Dùng `Logger` built-in của NestJS (context: `HTTP`)
+- Đo thời gian thực qua `response.on('finish', ...)`
+- Đăng ký trong `AppModule.configure()` với pattern `'{*path}'` (NestJS 11+)
+
+---
+
+## 7. Monitoring & Keep-Alive (Render Free Tier)
+
+Render Free Tier tự động "ngủ" sau **15 phút** không có traffic. Để tránh cold start:
+
+### Health Check Endpoint
+
+```
+GET /api/v1/health
+```
+
+Trả về `{ status: 'ok', timestamp: '...' }`. Không cần JWT (`@Public()`). Cực nhẹ, không query DB.
+
+### Cài đặt UptimeRobot (Miễn phí)
+
+1. Đăng ký tại [uptimerobot.com](https://uptimerobot.com).
+2. **Add New Monitor** → Monitor Type: `HTTP(s)`.
+3. Điền URL: `https://<your-app>.onrender.com/api/v1/health`
+4. Monitoring Interval: **14 phút** _(ping trước ngưỡng ngủ 1 phút để an toàn)_.
+5. Thêm Alert Contact (email) để nhận thông báo khi server down.
+
+---
+
+## 8. Deploy lên Render
+
+### Build Command (cấu hình trong Render Dashboard → Settings)
+
 ```bash
+pnpm install --frozen-lockfile && pnpm dlx prisma generate && pnpm run build
+```
+
+> `prisma generate` bắt buộc phải có vì Render clone code mới từ Git, chưa có Prisma Client được sinh ra.
+
+### Start Command
+
+```bash
+pnpm run start:prod
+```
+
+### Environment Variables (Render Dashboard → Environment)
+
+Copy toàn bộ keys từ `.env.example` vào đây. **Lưu ý quan trọng:**
+- **Không commit file `.env`** lên Git.
+- **Không set `PORT`** — Render tự inject giá trị này.
+- Nếu cần chỉ định Node version, thêm `NODE_VERSION = 22`.
+
+---
+
+## 9. Quy chuẩn viết Code
+
+**Format response thành công (do `TransformInterceptor` xử lý tự động):**
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": { "..." : "..." },
+  "timestamp": "2026-07-12T04:00:00.000Z"
+}
+```
+
+**Format response lỗi (do `HttpExceptionFilter` xử lý tự động):**
+```json
+{
+  "success": false,
+  "statusCode": 401,
+  "errorCode": "INVALID_CREDENTIALS",
+  "message": "Mật khẩu không chính xác.",
+  "timestamp": "2026-07-12T04:00:00.000Z",
+  "path": "/api/v1/auth/login"
+}
+```
+
+**Rules:**
+1. **KHÔNG dùng `try-catch`** trong Controller/Service để tự ép format JSON lỗi. Cứ `throw new HttpException(...)`, các Filter sẽ tự lo.
+2. **Tập trung constants**: Mọi message lỗi và error code phải nằm trong `src/common/constants/`.
+3. **Comment JSDoc**: Viết bằng tiếng Việt, ngắn gọn 1-2 dòng, mô tả chức năng hàm. Không inline comment lê thê trong logic.
+
+---
+
+## 10. Hướng dẫn chạy dự án (Local)
+
+```bash
+# 1. Cài đặt dependencies
 pnpm install
-```
 
-**Môi trường (.env):**
-Copy file `.env.example` thành `.env` và điền đủ các thông tin: `DATABASE_URL`, `JWT_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_SECRET`, `JWT_REFRESH_EXPIRES_IN`.
+# 2. Tạo file .env từ mẫu và điền đủ thông tin
+cp .env.example .env
 
-**Chạy Database Migration & Seed:**
-```bash
-npx prisma db push       # Hoặc npx prisma migrate dev
-pnpm run seed            # Bơm tài khoản admin mồi
-```
+# 3. Đẩy schema lên DB + Generate Prisma Client
+npx prisma db push
+npx prisma generate
 
-**Khởi chạy Dev:**
-```bash
+# 4. Seed dữ liệu mồi (tài khoản admin)
+pnpm run seed
+
+# 5. Chạy dev server (có hot-reload)
 pnpm run start:dev
 ```
+
+API docs có sẵn tại: `http://localhost:8080/api/docs`
