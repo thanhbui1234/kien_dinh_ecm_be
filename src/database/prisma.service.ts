@@ -7,7 +7,10 @@ import ws from 'ws';
 neonConfig.webSocketConstructor = ws;
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   constructor() {
     const connectionString = process.env.DATABASE_URL;
     const adapter = new PrismaNeon({ connectionString });

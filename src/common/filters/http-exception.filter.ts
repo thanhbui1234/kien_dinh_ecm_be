@@ -22,7 +22,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    
+
     const status = exception.getStatus();
     const exceptionResponse: any = exception.getResponse();
 
@@ -38,7 +38,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
     }
 
-    this.logger.error(`[${request.method}] ${request.url} - Status: ${status} - Message: ${Array.isArray(message) ? message.join(', ') : message}`);
+    this.logger.error(
+      `[${request.method}] ${request.url} - Status: ${status} - Message: ${Array.isArray(message) ? message.join(', ') : message}`,
+    );
 
     response.status(status).json({
       success: false,
@@ -50,5 +52,3 @@ export class HttpExceptionFilter implements ExceptionFilter {
     });
   }
 }
-
-

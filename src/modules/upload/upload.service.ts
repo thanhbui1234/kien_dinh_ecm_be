@@ -21,19 +21,26 @@ export class UploadService {
   /**
    * Upload file lên Cloudinary thông qua stream. Hỗ trợ xoá phông.
    */
-  async uploadFile(file: Express.Multer.File, bgOption: BgOption = BgOption.NONE): Promise<string> {
+  async uploadFile(
+    file: Express.Multer.File,
+    bgOption: BgOption = BgOption.NONE,
+  ): Promise<string> {
     let bufferToUpload = file.buffer;
 
     // Nếu chọn transparent, dùng AI xóa phông cục bộ trước khi upload
     if (bgOption === BgOption.TRANSPARENT) {
       try {
-        const inputBlob = new Blob([new Uint8Array(file.buffer)], { type: file.mimetype });
+        const inputBlob = new Blob([new Uint8Array(file.buffer)], {
+          type: file.mimetype,
+        });
         const blob = await removeBackground(inputBlob);
         const arrayBuffer = await blob.arrayBuffer();
         bufferToUpload = Buffer.from(arrayBuffer);
       } catch (err) {
         console.error('Lỗi xóa phông cục bộ:', err);
-        throw new InternalServerErrorException(AppMessages.UPLOAD.BG_REMOVAL_ERROR);
+        throw new InternalServerErrorException(
+          AppMessages.UPLOAD.BG_REMOVAL_ERROR,
+        );
       }
     }
 
@@ -47,7 +54,10 @@ export class UploadService {
           if (error) {
             console.error('Cloudinary Upload Error:', error);
             return reject(
-              new InternalServerErrorException(AppMessages.UPLOAD.CLOUDINARY_ERROR + (error.message || JSON.stringify(error))),
+              new InternalServerErrorException(
+                AppMessages.UPLOAD.CLOUDINARY_ERROR +
+                  (error.message || JSON.stringify(error)),
+              ),
             );
           }
 
@@ -56,7 +66,10 @@ export class UploadService {
           // Nếu chọn cloudinary_white, tận dụng tính năng on-the-fly transformation
           if (bgOption === BgOption.CLOUDINARY_WHITE) {
             // Chèn e_background_removal,b_white vào sau /upload/
-            finalUrl = finalUrl.replace('/upload/', '/upload/e_background_removal,b_white/');
+            finalUrl = finalUrl.replace(
+              '/upload/',
+              '/upload/e_background_removal,b_white/',
+            );
           }
 
           resolve(finalUrl);

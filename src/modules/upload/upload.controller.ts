@@ -7,7 +7,13 @@ import {
   Body,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiConsumes, ApiBody, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiConsumes,
+  ApiBody,
+  ApiOperation,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { UploadService } from './upload.service';
 import { BgOption, UPLOAD_CONSTANTS } from './constants/upload.constant';
 import { AppMessages } from '../../common/constants/messages.constant';
@@ -16,12 +22,15 @@ import { AppMessages } from '../../common/constants/messages.constant';
 @ApiBearerAuth('JWT-auth')
 @Controller('upload')
 export class UploadController {
-  constructor(private readonly uploadService: UploadService) { }
+  constructor(private readonly uploadService: UploadService) {}
 
   /**
    * Upload ảnh. Hỗ trợ xoá phông.
    */
-  @ApiOperation({ summary: 'Upload file ảnh', description: 'Tải ảnh lên hệ thống (có hỗ trợ xoá phông).' })
+  @ApiOperation({
+    summary: 'Upload file ảnh',
+    description: 'Tải ảnh lên hệ thống (có hỗ trợ xoá phông).',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -34,8 +43,13 @@ export class UploadController {
         },
         bgOption: {
           type: 'string',
-          enum: [BgOption.NONE, BgOption.TRANSPARENT, BgOption.CLOUDINARY_WHITE],
-          description: 'Tuỳ chọn xử lý phông nền (none | transparent | cloudinary_white)',
+          enum: [
+            BgOption.NONE,
+            BgOption.TRANSPARENT,
+            BgOption.CLOUDINARY_WHITE,
+          ],
+          description:
+            'Tuỳ chọn xử lý phông nền (none | transparent | cloudinary_white)',
           default: BgOption.NONE,
         },
       },

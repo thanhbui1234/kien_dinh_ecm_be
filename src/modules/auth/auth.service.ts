@@ -20,12 +20,15 @@ export class AuthService {
    */
   private async getTokens(userId: string, email: string, role: string) {
     const payload = { sub: userId, email, role };
-    
+
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload),
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d') as any,
+        expiresIn: this.configService.get<string>(
+          'JWT_REFRESH_EXPIRES_IN',
+          '7d',
+        ) as any,
       }),
     ]);
 
@@ -37,12 +40,12 @@ export class AuthService {
    */
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
-    
+
     const user = await this.usersService.findByEmail(email);
     if (!user) {
       throw new UnauthorizedException({
         message: AppMessages.AUTH.USER_NOT_FOUND,
-        errorCode: ErrorCode.USER_NOT_FOUND, 
+        errorCode: ErrorCode.USER_NOT_FOUND,
       });
     }
 
@@ -57,7 +60,7 @@ export class AuthService {
     const tokens = await this.getTokens(user.id, user.email, user.role);
     const hashedRefreshToken = await HashUtil.hash(tokens.refreshToken);
     await this.usersService.updateRefreshToken(user.id, hashedRefreshToken);
-    
+
     return {
       ...tokens,
       user: {
@@ -89,7 +92,10 @@ export class AuthService {
       }
 
       // So khớp mã hash
-      const isRefreshTokenMatching = await HashUtil.compare(refreshToken, user.refreshToken);
+      const isRefreshTokenMatching = await HashUtil.compare(
+        refreshToken,
+        user.refreshToken,
+      );
       if (!isRefreshTokenMatching) {
         throw new UnauthorizedException({
           message: AppMessages.AUTH.INVALID_REFRESH_TOKEN,
@@ -132,6 +138,6 @@ export class AuthService {
         errorCode: ErrorCode.USER_NOT_FOUND,
       });
     }
-    return user; 
+    return user;
   }
 }

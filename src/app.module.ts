@@ -49,4 +49,3 @@ import { UploadModule } from './modules/upload/upload.module';
   ],
 })
 export class AppModule {}
-

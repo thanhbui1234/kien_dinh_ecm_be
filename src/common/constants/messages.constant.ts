@@ -34,6 +34,7 @@ export const AppMessages = {
     INTERNAL_SERVER_ERROR: 'Lỗi hệ thống nội bộ, vui lòng thử lại sau.',
     RECORD_NOT_FOUND: 'Không tìm thấy bản ghi dữ liệu yêu cầu.',
     FOREIGN_KEY_VIOLATION: 'Tham chiếu dữ liệu không hợp lệ (Lỗi khóa ngoại).',
-    UNIQUE_CONSTRAINT: (field: string) => `Trùng lặp dữ liệu: Trường '${field}' đã tồn tại.`,
-  }
+    UNIQUE_CONSTRAINT: (field: string) =>
+      `Trùng lặp dữ liệu: Trường '${field}' đã tồn tại.`,
+  },
 };
