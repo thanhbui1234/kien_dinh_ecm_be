@@ -115,7 +115,7 @@ Hệ thống sử dụng cơ chế 2 lớp Token:
 |--------|--------|---------|
 | Admin auth | `User` | Roles: `SUPER_ADMIN`, `EDITOR`. Có field `refreshToken` (bcrypt hash). |
 | Catalog | `Category` | Self-relation đệ quy cho danh mục nhiều cấp. |
-| Products | `Product`, `ProductDetail`, `ProductImage` | Vertical partition: `Product` cho list-scan, `ProductDetail` chứa HTML + JSONB specs (1-1). |
+| Products | `Product`, `ProductDetail`, `ProductImage` | Vertical partition: `Product` cho list-scan, `ProductDetail` chứa HTML + JSONB specs (1-1). Bảng `Product` hỗ trợ self-relation qua `parentId` (Máy chính / Biến thể). |
 | Projects | `Project`, `ProjectDetail`, `ProjectProduct`, `ProjectCategory` | Showcase liên kết products + categories qua join table tường minh. |
 | Leads | `ContactRequest` | Status: `PENDING`, `CONTACTED`, `SPAM`. |
 | Recruitment | `JobPost`, `JobPostDetail` | Cùng pattern 1-1 split như Product. |
@@ -192,7 +192,17 @@ Copy toàn bộ keys từ `.env.example` vào đây. **Lưu ý quan trọng:**
 
 ---
 
-## 9. Quy chuẩn viết Code
+## 9. Phân trang (Pagination) Toàn cục
+
+Hệ thống sử dụng chuẩn phân trang đồng nhất tại `src/common/dto/pagination.dto.ts`:
+
+- **Input DTO**: Mọi class Filter đều kế thừa `PageOptionsDto` để có sẵn `page`, `limit`, tự động transform string sang number.
+- **Output DTO**: Dữ liệu trả về được gói trong `PageDto<T>` (Gồm `data` mảng kết quả và `meta` chứa `totalPages`, `hasNextPage`...).
+- **Performance**: Ở tầng Service, luôn dùng `prisma.$transaction([ prisma.entity.findMany(), prisma.entity.count() ])` để tải dữ liệu song song.
+
+---
+
+## 10. Quy chuẩn viết Code
 
 **Format response thành công (do `TransformInterceptor` xử lý tự động):**
 ```json
@@ -223,7 +233,7 @@ Copy toàn bộ keys từ `.env.example` vào đây. **Lưu ý quan trọng:**
 
 ---
 
-## 10. Hướng dẫn chạy dự án (Local)
+## 11. Hướng dẫn chạy dự án (Local)
 
 ```bash
 # 1. Cài đặt dependencies

@@ -1,0 +1,303 @@
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
+import { GetProductsFilterDto } from './dto/get-products-filter.dto';
+import { AppMessages } from '../../common/constants/messages.constant';
+import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
+import { Prisma } from '@prisma/client';
+
+@Injectable()
+export class ProductsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(createProductDto: CreateProductDto) {
+    const { contentDetail, specifications, images, parentId, categoryId, ...productData } = createProductDto;
+
+    const existingProduct = await this.prisma.product.findUnique({
+      where: { slug: productData.slug },
+    });
+
+    if (existingProduct) {
+      throw new ConflictException({
+        message: AppMessages.PRODUCT.SLUG_EXISTS,
+        errorCode: 'PRODUCT_SLUG_EXISTS',
+      });
+    }
+
+    const category = await this.prisma.category.findUnique({
+      where: { id: categoryId },
+    });
+
+    if (!category) {
+      throw new BadRequestException({
+        message: AppMessages.CATEGORY.NOT_FOUND,
+        errorCode: 'CATEGORY_NOT_FOUND',
+      });
+    }
+
+    if (parentId) {
+      const parent = await this.prisma.product.findUnique({ where: { id: parentId } });
+      if (!parent) {
+        throw new BadRequestException({
+          message: AppMessages.PRODUCT.PARENT_NOT_FOUND,
+          errorCode: 'PARENT_PRODUCT_NOT_FOUND',
+        });
+      }
+    }
+
+    const createData: Prisma.ProductCreateInput = {
+      ...productData,
+      category: { connect: { id: categoryId } },
+    };
+
+    if (parentId) {
+      createData.parent = { connect: { id: parentId } };
+    }
+
+    if (contentDetail || specifications) {
+      createData.detail = {
+        create: {
+          contentDetail: contentDetail || '',
+          specifications: specifications || {},
+        },
+      };
+    }
+
+    if (images && images.length > 0) {
+      createData.images = {
+        create: images,
+      };
+    }
+
+    return this.prisma.product.create({
+      data: createData,
+      include: {
+        detail: true,
+        images: true,
+        category: true,
+        parent: true,
+      },
+    });
+  }
+
+  async findAll(filterDto: GetProductsFilterDto) {
+    const { search, categoryId, status, isFeatured, sortBy, skip, limit } = filterDto;
+
+    const where: Prisma.ProductWhereInput = {};
+
+    if (search) {
+      where.name = { contains: search, mode: 'insensitive' };
+    }
+    if (categoryId) {
+      where.categoryId = categoryId;
+    }
+    if (status !== undefined) {
+      where.status = status;
+    }
+    if (isFeatured !== undefined) {
+      where.isFeatured = isFeatured;
+    }
+
+    let orderBy: Prisma.ProductOrderByWithRelationInput | Prisma.ProductOrderByWithRelationInput[] = { createdAt: 'desc' };
+    if (sortBy === 'category') {
+      orderBy = [
+        { category: { orderIndex: 'asc' } },
+        { createdAt: 'desc' }
+      ];
+    } else if (sortBy === 'price') {
+      orderBy = { price: 'asc' };
+    }
+
+    const [items, totalItems] = await this.prisma.$transaction([
+      this.prisma.product.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        include: {
+          category: { select: { id: true, name: true, slug: true } },
+          variants: { select: { id: true, name: true, slug: true, price: true } }
+        },
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    const pageMetaDto = new PageMetaDto(totalItems, filterDto, items.length);
+    return new PageDto(items, pageMetaDto);
+  }
+
+  async findOne(id: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: {
+        detail: true,
+        images: { orderBy: { orderIndex: 'asc' } },
+        category: true,
+        variants: true,
+        parent: { select: { id: true, name: true, slug: true } }
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException({
+        message: AppMessages.PRODUCT.NOT_FOUND,
+        errorCode: 'PRODUCT_NOT_FOUND',
+      });
+    }
+
+    return product;
+  }
+
+  async findRelated(id: string, limit: number = 5) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      select: { categoryId: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException({
+        message: AppMessages.PRODUCT.NOT_FOUND,
+        errorCode: 'PRODUCT_NOT_FOUND',
+      });
+    }
+
+    const relatedProducts = await this.prisma.product.findMany({
+      where: {
+        categoryId: product.categoryId,
+        id: { not: id }, // Exclude current product
+        status: true,
+      },
+      take: Number(limit),
+      orderBy: { isFeatured: 'desc' }, // Optional: prioritize featured items
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+      },
+    });
+
+    return relatedProducts;
+  }
+
+  async update(id: string, updateProductDto: UpdateProductDto) {
+    const { contentDetail, specifications, images, parentId, categoryId, ...productData } = updateProductDto;
+
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: { detail: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException({
+        message: AppMessages.PRODUCT.NOT_FOUND,
+        errorCode: 'PRODUCT_NOT_FOUND',
+      });
+    }
+
+    if (productData.slug && productData.slug !== product.slug) {
+      const existingSlug = await this.prisma.product.findUnique({
+        where: { slug: productData.slug },
+      });
+      if (existingSlug) {
+        throw new ConflictException({
+          message: AppMessages.PRODUCT.SLUG_EXISTS,
+          errorCode: 'PRODUCT_SLUG_EXISTS',
+        });
+      }
+    }
+
+    if (categoryId && categoryId !== product.categoryId) {
+      const category = await this.prisma.category.findUnique({
+        where: { id: categoryId },
+      });
+      if (!category) {
+        throw new BadRequestException({
+          message: AppMessages.CATEGORY.NOT_FOUND,
+          errorCode: 'CATEGORY_NOT_FOUND',
+        });
+      }
+    }
+
+    if (parentId !== undefined) {
+      if (parentId === id) {
+        throw new BadRequestException({
+          message: AppMessages.PRODUCT.CIRCULAR_PARENT,
+          errorCode: 'PRODUCT_CIRCULAR_PARENT',
+        });
+      }
+      if (parentId !== null && parentId !== '') {
+        const parent = await this.prisma.product.findUnique({ where: { id: parentId } });
+        if (!parent) {
+          throw new BadRequestException({
+            message: AppMessages.PRODUCT.PARENT_NOT_FOUND,
+            errorCode: 'PARENT_PRODUCT_NOT_FOUND',
+          });
+        }
+      }
+    }
+
+    const updateData: Prisma.ProductUpdateInput = {
+      ...productData,
+    };
+
+    if (categoryId) {
+      updateData.category = { connect: { id: categoryId } };
+    }
+
+    if (parentId !== undefined) {
+      if (parentId === null || parentId === '') {
+        updateData.parent = { disconnect: true };
+      } else {
+        updateData.parent = { connect: { id: parentId } };
+      }
+    }
+
+    if (contentDetail !== undefined || specifications !== undefined) {
+      const detailUpdate = {
+        contentDetail: contentDetail !== undefined ? contentDetail : product.detail?.contentDetail || '',
+        specifications: specifications !== undefined ? specifications : product.detail?.specifications || {},
+      };
+
+      updateData.detail = {
+        upsert: {
+          create: detailUpdate,
+          update: detailUpdate,
+        },
+      };
+    }
+
+    if (images) {
+      updateData.images = {
+        deleteMany: {}, 
+        create: images, 
+      };
+    }
+
+    return this.prisma.product.update({
+      where: { id },
+      data: updateData,
+      include: {
+        detail: true,
+        images: true,
+        category: true,
+        parent: true,
+        variants: true,
+      },
+    });
+  }
+
+  async remove(id: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+    });
+
+    if (!product) {
+      throw new NotFoundException({
+        message: AppMessages.PRODUCT.NOT_FOUND,
+        errorCode: 'PRODUCT_NOT_FOUND',
+      });
+    }
+
+    await this.prisma.product.delete({ where: { id } });
+    return { message: AppMessages.PRODUCT.DELETE_SUCCESS };
+  }
+}

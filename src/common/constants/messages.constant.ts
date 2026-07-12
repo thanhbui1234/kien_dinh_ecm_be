@@ -37,4 +37,24 @@ export const AppMessages = {
     UNIQUE_CONSTRAINT: (field: string) =>
       `Trùng lặp dữ liệu: Trường '${field}' đã tồn tại.`,
   },
+
+  // Category Messages
+  CATEGORY: {
+    NOT_FOUND: 'Không tìm thấy danh mục.',
+    SLUG_EXISTS: 'Slug danh mục đã tồn tại.',
+    PARENT_NOT_FOUND: 'Danh mục cha không tồn tại.',
+    CIRCULAR_PARENT: 'Danh mục không thể làm cha của chính nó.',
+    HAS_CHILDREN: 'Không thể xóa vì danh mục vẫn còn danh mục con.',
+    HAS_RELATIONS: 'Không thể xóa vì danh mục đang chứa sản phẩm hoặc dự án.',
+    DELETE_SUCCESS: 'Đã xóa danh mục thành công.',
+  },
+
+  // Product Messages
+  PRODUCT: {
+    NOT_FOUND: 'Không tìm thấy sản phẩm.',
+    SLUG_EXISTS: 'Slug sản phẩm đã tồn tại.',
+    DELETE_SUCCESS: 'Đã xóa sản phẩm thành công.',
+    PARENT_NOT_FOUND: 'Sản phẩm cha không tồn tại.',
+    CIRCULAR_PARENT: 'Sản phẩm không thể làm cha của chính nó.',
+  },
 };

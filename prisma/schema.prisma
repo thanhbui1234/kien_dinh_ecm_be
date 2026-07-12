@@ -26,6 +26,7 @@ model Category {
   id              String            @id @default(uuid())
   name            String
   slug            String            @unique
+  imageUrl        String?
   orderIndex      Int               @default(0)
   status          Boolean           @default(true)
   parentId        String?
@@ -48,6 +49,9 @@ model Product {
   status          Boolean          @default(true)
   categoryId      String
   category        Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  parentId        String?
+  parent          Product?         @relation("ProductVariants", fields: [parentId], references: [id], onDelete: Restrict)
+  variants        Product[]        @relation("ProductVariants")
   detail          ProductDetail? // Liên kết 1-1 sang bảng chứa hàng nặng kỹ thuật
   images          ProductImage[]
   contactRequests ContactRequest[]
