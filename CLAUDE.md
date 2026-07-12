@@ -91,6 +91,9 @@ PostgreSQL on Neon Serverless, accessed via Prisma 7. `PrismaService` is globall
 - **1-1 vertical partitioning**: Lightweight list models (`Product`, `Project`) are split from heavy detail counterparts (`ProductDetail`, `ProjectDetail`) to keep list-scan queries fast.
 - **Slug fields** on all content models — unique, used as public URL identifiers.
 - **Explicit M2M join tables** (`ProjectProduct`, `ProjectCategory`) instead of Prisma implicit M2M, to allow future join-row extensions.
+- **Self-relations**: Used in `Category` (multi-level tree) and `Product` (parent-child variants via `parentId`).
+- **Global Pagination**: Always use `PageOptionsDto`, `PageMetaDto`, and `PageDto<T>` from `src/common/dto/pagination.dto.ts`. Use `prisma.$transaction` for concurrent `findMany` + `count`.
+- **Nested Writes**: Always save/update related tables (e.g., `Product` + `Detail` + `Image`) using Prisma's nested writes to guarantee transaction safety.
 
 See `README.md` for the full database schema domain table.
 
