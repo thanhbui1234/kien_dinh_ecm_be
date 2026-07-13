@@ -40,6 +40,13 @@ export class ProductsController {
     return this.productsService.findRelated(id, limit || 5);
   }
 
+  @ApiOperation({ summary: 'Tăng lượt xem sản phẩm' })
+  @Public()
+  @Patch(':id/view')
+  incrementViewCount(@Param('id') id: string) {
+    return this.productsService.incrementViewCount(id);
+  }
+
   @ApiOperation({ summary: 'Cập nhật sản phẩm' })
   @ApiBearerAuth('JWT-auth')
   @Patch(':id')

@@ -12,7 +12,7 @@ export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createProductDto: CreateProductDto) {
-    const { contentDetail, specifications, images, parentId, categoryId, ...productData } = createProductDto;
+    const { contentDetail, specifications, images, parentId, categoryId, seoMeta, ...productData } = createProductDto;
 
     const existingProduct = await this.prisma.product.findUnique({
       where: { slug: productData.slug },
@@ -55,11 +55,12 @@ export class ProductsService {
       createData.parent = { connect: { id: parentId } };
     }
 
-    if (contentDetail || specifications) {
+    if (contentDetail !== undefined || specifications !== undefined || seoMeta !== undefined) {
       createData.detail = {
         create: {
           contentDetail: contentDetail || '',
           specifications: specifications || {},
+          seoMeta: seoMeta || Prisma.JsonNull,
         },
       };
     }
@@ -179,7 +180,7 @@ export class ProductsService {
   }
 
   async update(id: string, updateProductDto: UpdateProductDto) {
-    const { contentDetail, specifications, images, parentId, categoryId, ...productData } = updateProductDto;
+    const { contentDetail, specifications, images, parentId, categoryId, seoMeta, ...productData } = updateProductDto;
 
     const product = await this.prisma.product.findUnique({
       where: { id },
@@ -251,10 +252,11 @@ export class ProductsService {
       }
     }
 
-    if (contentDetail !== undefined || specifications !== undefined) {
+    if (contentDetail !== undefined || specifications !== undefined || seoMeta !== undefined) {
       const detailUpdate = {
         contentDetail: contentDetail !== undefined ? contentDetail : product.detail?.contentDetail || '',
         specifications: specifications !== undefined ? specifications : product.detail?.specifications || {},
+        seoMeta: seoMeta !== undefined ? seoMeta : product.detail?.seoMeta || Prisma.JsonNull,
       };
 
       updateData.detail = {
@@ -299,5 +301,22 @@ export class ProductsService {
 
     await this.prisma.product.delete({ where: { id } });
     return { message: AppMessages.PRODUCT.DELETE_SUCCESS };
+  }
+
+  async incrementViewCount(id: string) {
+    const product = await this.prisma.product.findUnique({ where: { id } });
+    if (!product) {
+      throw new NotFoundException({
+        message: AppMessages.PRODUCT.NOT_FOUND,
+        errorCode: 'PRODUCT_NOT_FOUND',
+      });
+    }
+
+    await this.prisma.product.update({
+      where: { id },
+      data: { viewCount: { increment: 1 } },
+    });
+    
+    return { success: true };
   }
 }

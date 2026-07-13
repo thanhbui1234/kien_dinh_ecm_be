@@ -56,6 +56,7 @@ model Product {
   images          ProductImage[]
   contactRequests ContactRequest[]
   projectMappings ProjectProduct[]
+  viewCount       Int              @default(0)
   createdAt       DateTime         @default(now())
 
   @@index([name])
@@ -67,6 +68,7 @@ model ProductDetail {
   product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   contentDetail  String  @db.Text // Nội dung mô tả chi tiết bằng bài viết HTML dài
   specifications Json // Lưu cấu trúc thông số động dạng JSONB linh hoạt cho máy CNC
+  seoMeta        Json? // Chứa { title, description, keywords }
 }
 
 model ProductImage {

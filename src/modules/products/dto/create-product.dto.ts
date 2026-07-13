@@ -66,13 +66,18 @@ export class CreateProductDto {
   @IsOptional()
   contentDetail?: string;
 
-  @ApiPropertyOptional({ description: 'Thông số kỹ thuật dạng JSON' })
+  @ApiPropertyOptional({ description: 'Thông số kỹ thuật dạng JSON linh hoạt' })
   @IsObject()
   @IsOptional()
-  specifications?: Record<string, any>;
+  specifications?: any;
+
+  @ApiPropertyOptional({ description: 'Dữ liệu tối ưu SEO (Title, Description, Keywords)' })
+  @IsObject()
+  @IsOptional()
+  seoMeta?: any;
 
   // --- Hình ảnh ---
-  @ApiPropertyOptional({ type: [CreateProductImageDto], description: 'Danh sách ảnh' })
+  @ApiPropertyOptional({ type: [CreateProductImageDto], description: 'Danh sách hình ảnh' })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateProductImageDto)
