@@ -12,6 +12,7 @@ Tập trung vào tính ổn định, dễ dàng scale (kiến trúc Module), và
 | **NestJS 11** | Framework TypeScript, kiến trúc Module |
 | **Prisma 7** | ORM với type-safety đầy đủ |
 | **Neon Postgres** | Serverless PostgreSQL |
+| **Upstash Redis** | Serverless Caching cho các API nhiều traffic |
 | **JWT (Passport)** | Access Token + Refresh Token |
 | **Cloudinary** | Upload & quản lý ảnh |
 | **Swagger** | Tự động sinh API docs tại `/api/docs` |
@@ -128,7 +129,20 @@ Hệ thống sử dụng cơ chế 2 lớp Token:
 
 ---
 
-## 6. HTTP Request Logging
+## 6. Caching Strategy (Redis)
+
+Dự án sử dụng **Upstash Redis** để giảm tải cho PostgreSQL ở các endpoint có lượng truy cập lớn (Navigation Menu, Homepage Featured Products, Product Detail).
+
+- **Category:** Caching mảng phẳng (`categories:flat`) với TTL 24h.
+- **Product:** Caching chi tiết sản phẩm (`product:detail:<id>` và `product:detail:<slug>`) với TTL 12h. Caching danh sách nổi bật (`products:featured:*`) với TTL 1h.
+- **Smart Invalidation:** Tự động xóa cache (via `RedisService`) khi Admin thực hiện CRUD (thêm, sửa, xóa).
+- **Graceful Fallback:** Bọc `try...catch` ở mọi bước gọi Redis. Nếu Upstash lỗi, hệ thống tự động fallback query thẳng vào PostgreSQL, đảm bảo app không bị crash (HTTP 500).
+
+> Xem ma trận thiết kế chi tiết và roadmap tại file `REDIS_CACHE.md` (root directory).
+
+---
+
+## 7. HTTP Request Logging
 
 Mọi HTTP request được tự động log ra console qua `LoggerMiddleware`:
 
@@ -145,7 +159,7 @@ Mọi HTTP request được tự động log ra console qua `LoggerMiddleware`:
 
 ---
 
-## 7. Monitoring & Keep-Alive (Render Free Tier)
+## 8. Monitoring & Keep-Alive (Render Free Tier)
 
 Render Free Tier tự động "ngủ" sau **15 phút** không có traffic. Để tránh cold start:
 
@@ -167,7 +181,7 @@ Trả về `{ status: 'ok', timestamp: '...' }`. Không cần JWT (`@Public()`).
 
 ---
 
-## 8. Deploy lên Render
+## 9. Deploy lên Render
 
 ### Build Command (cấu hình trong Render Dashboard → Settings)
 
@@ -192,7 +206,7 @@ Copy toàn bộ keys từ `.env.example` vào đây. **Lưu ý quan trọng:**
 
 ---
 
-## 9. Phân trang (Pagination) Toàn cục
+## 10. Phân trang (Pagination) Toàn cục
 
 Hệ thống sử dụng chuẩn phân trang đồng nhất tại `src/common/dto/pagination.dto.ts`:
 
@@ -202,7 +216,7 @@ Hệ thống sử dụng chuẩn phân trang đồng nhất tại `src/common/dt
 
 ---
 
-## 10. Quy chuẩn viết Code
+## 11. Quy chuẩn viết Code
 
 **Format response thành công (do `TransformInterceptor` xử lý tự động):**
 ```json
@@ -233,7 +247,7 @@ Hệ thống sử dụng chuẩn phân trang đồng nhất tại `src/common/dt
 
 ---
 
-## 11. Hướng dẫn chạy dự án (Local)
+## 12. Hướng dẫn chạy dự án (Local)
 
 ```bash
 # 1. Cài đặt dependencies

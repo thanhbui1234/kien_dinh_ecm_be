@@ -1,5 +1,6 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { RedisService } from '../../database/redis.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { AppMessages } from '../../common/constants/messages.constant';
@@ -7,7 +8,12 @@ import { ErrorCode } from '../../common/constants/error-codes.constant';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(CategoriesService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async create(createCategoryDto: CreateCategoryDto) {
     const { parentId, ...categoryData } = createCategoryDto;
@@ -38,41 +44,33 @@ export class CategoriesService {
       data.parent = { connect: { id: parentId } };
     }
 
-    return this.prisma.category.create({
+    const newCategory = await this.prisma.category.create({
       data,
     });
+
+    await this.redis.client.del('categories:flat');
+    return newCategory;
   }
-
-  async findAllTree() {
-    const allCategories = await this.prisma.category.findMany({
-      orderBy: { orderIndex: 'asc' },
-    });
-
-    // Build the tree
-    const map = new Map<string, any>();
-    allCategories.forEach((cat) => {
-      map.set(cat.id, { ...cat, children: [] });
-    });
-
-    const tree: any[] = [];
-    allCategories.forEach((cat) => {
-      if (cat.parentId) {
-        const parent = map.get(cat.parentId);
-        if (parent) {
-          parent.children.push(map.get(cat.id));
-        }
-      } else {
-        tree.push(map.get(cat.id));
+  async findAll() {
+    try {
+      const cachedFlat = await this.redis.client.get<any[]>('categories:flat');
+      if (cachedFlat) {
+        this.logger.log('[Redis] Cache Hit: categories:flat');
+        return cachedFlat;
       }
-    });
+    } catch (error) {}
 
-    return tree;
-  }
+    this.logger.log('[Redis] Cache Miss: categories:flat');
 
-  async findAllFlat() {
-    return this.prisma.category.findMany({
+    const flatCategories = await this.prisma.category.findMany({
       orderBy: { orderIndex: 'asc' },
     });
+
+    try {
+      await this.redis.client.set('categories:flat', flatCategories, { ex: 86400 });
+    } catch (error) {}
+
+    return flatCategories;
   }
 
   async findOne(id: string) {
@@ -142,10 +140,13 @@ export class CategoriesService {
       }
     }
 
-    return this.prisma.category.update({
+    const updatedCategory = await this.prisma.category.update({
       where: { id },
       data,
     });
+
+    await this.redis.client.del('categories:flat');
+    return updatedCategory;
   }
 
   async remove(id: string) {
@@ -180,6 +181,8 @@ export class CategoriesService {
     }
 
     await this.prisma.category.delete({ where: { id } });
+    await this.redis.client.del('categories:flat');
+    
     return { message: AppMessages.CATEGORY.DELETE_SUCCESS };
   }
 }

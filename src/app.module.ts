@@ -2,6 +2,7 @@ import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './database/prisma.module';
+import { RedisModule } from './database/redis.module';
 import { validateConfig } from './core/config/env.validation';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -28,6 +29,7 @@ import { LoggerMiddleware } from './common/middlewares/logger.middleware';
       validate: validateConfig,
     }),
     PrismaModule,
+    RedisModule,
     UsersModule,
     AuthModule,
     UploadModule,
