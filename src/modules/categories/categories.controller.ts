@@ -18,14 +18,11 @@ export class CategoriesController {
   }
 
   @ApiOperation({ summary: 'Lấy danh sách tất cả danh mục' })
-  @ApiQuery({ name: 'format', required: false, enum: ['tree', 'flat'], description: 'Format trả về. tree = lồng nhau, flat = danh sách phẳng. Mặc định là flat.' })
+
   @Public()
   @Get()
-  findAll(@Query('format') format?: 'tree' | 'flat') {
-    if (format === 'tree') {
-      return this.categoriesService.findAllTree();
-    }
-    return this.categoriesService.findAllFlat();
+  findAll() {
+    return this.categoriesService.findAll();
   }
 
   @ApiOperation({ summary: 'Lấy chi tiết danh mục' })

@@ -83,6 +83,15 @@ NestJS 11 backend. Global providers are wired in `AppModule`.
 - Optional `bgOption=transparent` triggers local AI background removal via `@imgly/background-removal-node`.
 - Constants (folder name, mime types, `BgOption` enum) live in `src/modules/upload/constants/upload.constant.ts`.
 
+## Caching Strategy (Redis)
+
+We use **Upstash Redis** (`@upstash/redis`) to offload high-traffic Postgres queries.
+- `RedisModule` and `RedisService` are globally exported from `src/database/`.
+- Caching is manually implemented inside Feature Services (e.g., `CategoriesService`, `ProductsService`) for fine-grained key management and TTL control.
+- **Golden Rule:** Always wrap `.get()`, `.set()`, and `.del()` in `try...catch` blocks. If Redis fails, the app MUST silently fallback to Prisma queries. NEVER let a cache failure crash the request.
+- **Invalidation:** Admin CRUD actions must systematically clear related keys (e.g., `this.redis.client.del(...)`).
+- **Documentation:** See `REDIS_CACHE.md` at the project root for the active key matrix and future targets.
+
 ## Database (Prisma + Neon)
 
 PostgreSQL on Neon Serverless, accessed via Prisma 7. `PrismaService` is globally available.

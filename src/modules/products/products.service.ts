@@ -1,5 +1,6 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { RedisService } from '../../database/redis.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { GetProductsFilterDto } from './dto/get-products-filter.dto';
@@ -9,7 +10,12 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ProductsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async create(createProductDto: CreateProductDto) {
     const { contentDetail, specifications, images, parentId, categoryId, seoMeta, ...productData } = createProductDto;
@@ -71,7 +77,7 @@ export class ProductsService {
       };
     }
 
-    return this.prisma.product.create({
+    const newProduct = await this.prisma.product.create({
       data: createData,
       include: {
         detail: true,
@@ -80,10 +86,36 @@ export class ProductsService {
         parent: true,
       },
     });
+
+    if (newProduct.isFeatured) {
+      try {
+        const keys = await this.redis.client.keys('products:featured:*');
+        if (keys.length > 0) {
+          await this.redis.client.del(...keys);
+        }
+      } catch (error) {}
+    }
+
+    return newProduct;
   }
 
   async findAll(filterDto: GetProductsFilterDto) {
     const { search, categoryId, status, isFeatured, sortBy, skip, limit } = filterDto;
+
+    const isFeaturedOnlyQuery = (isFeatured === true || isFeatured === 'true' as any) && !search && !categoryId;
+    const cacheKey = `products:featured:${skip || 0}:${limit || 10}`;
+
+    if (isFeaturedOnlyQuery) {
+      try {
+        const cached = await this.redis.client.get(cacheKey);
+        if (cached) {
+          this.logger.log(`[Redis] Cache Hit: ${cacheKey}`);
+          return cached;
+        }
+      } catch (error) {}
+      
+      this.logger.log(`[Redis] Cache Miss: ${cacheKey}`);
+    }
 
     const where: Prisma.ProductWhereInput = {};
 
@@ -94,10 +126,10 @@ export class ProductsService {
       where.categoryId = categoryId;
     }
     if (status !== undefined) {
-      where.status = status;
+      where.status = status === 'true' as any ? true : (status === 'false' as any ? false : status);
     }
     if (isFeatured !== undefined) {
-      where.isFeatured = isFeatured;
+      where.isFeatured = isFeatured === 'true' as any ? true : (isFeatured === 'false' as any ? false : isFeatured);
     }
 
     let orderBy: Prisma.ProductOrderByWithRelationInput | Prisma.ProductOrderByWithRelationInput[] = { createdAt: 'desc' };
@@ -125,12 +157,32 @@ export class ProductsService {
     ]);
 
     const pageMetaDto = new PageMetaDto(totalItems, filterDto, items.length);
-    return new PageDto(items, pageMetaDto);
+    const result = new PageDto(items, pageMetaDto);
+
+    if (isFeaturedOnlyQuery) {
+      try {
+        await this.redis.client.set(cacheKey, result, { ex: 3600 });
+      } catch (error) {}
+    }
+
+    return result;
   }
 
-  async findOne(id: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id },
+  async findOne(idOrSlug: string) {
+    try {
+      const cached = await this.redis.client.get(`product:detail:${idOrSlug}`);
+      if (cached) {
+        this.logger.log(`[Redis] Cache Hit: product:detail:${idOrSlug}`);
+        return cached;
+      }
+    } catch (error) {}
+
+    this.logger.log(`[Redis] Cache Miss: product:detail:${idOrSlug}`);
+
+    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
+
+    const product = await this.prisma.product.findFirst({
+      where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
       include: {
         detail: true,
         images: { orderBy: { orderIndex: 'asc' } },
@@ -146,6 +198,14 @@ export class ProductsService {
         errorCode: 'PRODUCT_NOT_FOUND',
       });
     }
+
+    try {
+      await this.redis.client.set(`product:detail:${idOrSlug}`, product, { ex: 43200 });
+      const otherKey = isUuid ? product.slug : product.id;
+      if (otherKey) {
+        await this.redis.client.set(`product:detail:${otherKey}`, product, { ex: 43200 });
+      }
+    } catch (error) {}
 
     return product;
   }
@@ -274,7 +334,7 @@ export class ProductsService {
       };
     }
 
-    return this.prisma.product.update({
+    const updatedProduct = await this.prisma.product.update({
       where: { id },
       data: updateData,
       include: {
@@ -285,6 +345,25 @@ export class ProductsService {
         variants: true,
       },
     });
+
+    try {
+      await this.redis.client.del(`product:detail:${id}`);
+      if (product.slug) {
+        await this.redis.client.del(`product:detail:${product.slug}`);
+      }
+      if (updatedProduct.slug && updatedProduct.slug !== product.slug) {
+        await this.redis.client.del(`product:detail:${updatedProduct.slug}`);
+      }
+
+      if (product.isFeatured || updatedProduct.isFeatured) {
+        const keys = await this.redis.client.keys('products:featured:*');
+        if (keys.length > 0) {
+          await this.redis.client.del(...keys);
+        }
+      }
+    } catch (error) {}
+
+    return updatedProduct;
   }
 
   async remove(id: string) {
@@ -300,6 +379,20 @@ export class ProductsService {
     }
 
     await this.prisma.product.delete({ where: { id } });
+
+    try {
+      await this.redis.client.del(`product:detail:${id}`);
+      if (product.slug) {
+        await this.redis.client.del(`product:detail:${product.slug}`);
+      }
+      if (product.isFeatured) {
+        const keys = await this.redis.client.keys('products:featured:*');
+        if (keys.length > 0) {
+          await this.redis.client.del(...keys);
+        }
+      }
+    } catch (error) {}
+
     return { message: AppMessages.PRODUCT.DELETE_SUCCESS };
   }
 
