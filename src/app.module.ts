@@ -17,6 +17,10 @@ import { HealthModule } from './modules/health/health.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { ProductsModule } from './modules/products/products.module';
 import { LoggerMiddleware } from './common/middlewares/logger.middleware';
+import { ProjectsModule } from './modules/projects/projects.module';
+import { JobsModule } from './modules/jobs/jobs.module';
+import { LeadsModule } from './modules/leads/leads.module';
+import { SettingsModule } from './modules/settings/settings.module';
 
 /**
  * Module gốc của ứng dụng NestJS.
@@ -36,6 +40,10 @@ import { LoggerMiddleware } from './common/middlewares/logger.middleware';
     HealthModule,
     CategoriesModule,
     ProductsModule,
+    ProjectsModule,
+    JobsModule,
+    LeadsModule,
+    SettingsModule,
   ],
   controllers: [],
   providers: [

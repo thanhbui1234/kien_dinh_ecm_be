@@ -10,12 +10,12 @@ generator client {
 // 1. PHÂN HỆ QUẢN TRỊ VIÊN (ADMIN AUTH)
 // ==========================================
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String
   fullName     String
   role         String   @default("EDITOR") // SUPER_ADMIN, EDITOR
-  refreshToken String?  // Lưu trữ Token refresh (đã băm) để có thể thu hồi khi logout
+  refreshToken String? // Lưu trữ Token refresh (đã băm) để có thể thu hồi khi logout
   createdAt    DateTime @default(now())
 }
 
@@ -34,6 +34,8 @@ model Category {
   subCategories   Category[]        @relation("CategoryToCategory")
   products        Product[]
   projectMappings ProjectCategory[]
+
+  @@index([parentId])
 }
 
 // ==========================================
@@ -61,6 +63,7 @@ model Product {
 
   @@index([name])
   @@index([categoryId, status])
+  @@index([isFeatured, status])
 }
 
 model ProductDetail {
@@ -96,6 +99,8 @@ model Project {
   products    ProjectProduct[]
   categories  ProjectCategory[]
   createdAt   DateTime          @default(now())
+
+  @@index([status, createdAt(sort: Desc)])
 }
 
 model ProjectDetail {
@@ -136,6 +141,8 @@ model ContactRequest {
   targetProductId String?
   product         Product? @relation(fields: [targetProductId], references: [id], onDelete: SetNull)
   createdAt       DateTime @default(now())
+
+  @@index([status, createdAt(sort: Desc)])
 }
 
 // ==========================================
@@ -149,13 +156,17 @@ model JobPost {
   status    Boolean        @default(true)
   detail    JobPostDetail?
   createdAt DateTime       @default(now())
+
+  @@index([status, createdAt(sort: Desc)])
 }
 
 model JobPostDetail {
-  jobId       String  @id
-  jobPost     JobPost @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  description String  @db.Text // Mô tả công việc (Job Description)
-  requirement String  @db.Text // Yêu cầu bằng cấp, kỹ năng máy CNC
+  id        String   @id @default(cuid())
+  jobId     String   @unique
+  job       JobPost  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  sections  Json // Mảng các mục. VD: [{ "title": "Requirement", "contents": ["...", "..."] }]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ==========================================

@@ -17,8 +17,11 @@ import {
 import { UploadService } from './upload.service';
 import { BgOption, UPLOAD_CONSTANTS } from './constants/upload.constant';
 import { AppMessages } from '../../common/constants/messages.constant';
+import { ApiSuccessResponse, ApiStandardErrors } from '../../common/decorators/api-success-response.decorator';
+import { UploadResponseDto } from './dto/upload-response.dto';
 
 @ApiTags('Upload')
+@ApiStandardErrors()
 @ApiBearerAuth('JWT-auth')
 @Controller('upload')
 export class UploadController {
@@ -55,6 +58,7 @@ export class UploadController {
       },
     },
   })
+  @ApiSuccessResponse({ model: UploadResponseDto, status: 201, description: 'Tải ảnh thành công' })
   @Post()
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(

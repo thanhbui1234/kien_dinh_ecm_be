@@ -5,13 +5,12 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { GetProductsFilterDto } from './dto/get-products-filter.dto';
 import { AppMessages } from '../../common/constants/messages.constant';
+import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
-  private readonly logger = new Logger(ProductsService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
@@ -89,7 +88,7 @@ export class ProductsService {
 
     if (newProduct.isFeatured) {
       try {
-        const keys = await this.redis.client.keys('products:featured:*');
+        const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX);
         if (keys.length > 0) {
           await this.redis.client.del(...keys);
         }
@@ -101,21 +100,6 @@ export class ProductsService {
 
   async findAll(filterDto: GetProductsFilterDto) {
     const { search, categoryId, status, isFeatured, sortBy, skip, limit } = filterDto;
-
-    const isFeaturedOnlyQuery = (isFeatured === true || isFeatured === 'true' as any) && !search && !categoryId;
-    const cacheKey = `products:featured:${skip || 0}:${limit || 10}`;
-
-    if (isFeaturedOnlyQuery) {
-      try {
-        const cached = await this.redis.client.get(cacheKey);
-        if (cached) {
-          this.logger.log(`[Redis] Cache Hit: ${cacheKey}`);
-          return cached;
-        }
-      } catch (error) {}
-      
-      this.logger.log(`[Redis] Cache Miss: ${cacheKey}`);
-    }
 
     const where: Prisma.ProductWhereInput = {};
 
@@ -130,6 +114,18 @@ export class ProductsService {
     }
     if (isFeatured !== undefined) {
       where.isFeatured = isFeatured === 'true' as any ? true : (isFeatured === 'false' as any ? false : isFeatured);
+    }
+
+    const isCacheable = Object.keys(where).length === 1 && where.isFeatured === true;
+    const cacheKey = CACHE_KEYS.PRODUCTS.GET_FEATURED(skip || 0, limit || 10);
+
+    if (isCacheable) {
+      try {
+        const cached = await this.redis.client.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
+      } catch (error) {}
     }
 
     let orderBy: Prisma.ProductOrderByWithRelationInput | Prisma.ProductOrderByWithRelationInput[] = { createdAt: 'desc' };
@@ -159,9 +155,9 @@ export class ProductsService {
     const pageMetaDto = new PageMetaDto(totalItems, filterDto, items.length);
     const result = new PageDto(items, pageMetaDto);
 
-    if (isFeaturedOnlyQuery) {
+    if (isCacheable) {
       try {
-        await this.redis.client.set(cacheKey, result, { ex: 3600 });
+        await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.ONE_HOUR });
       } catch (error) {}
     }
 
@@ -169,17 +165,15 @@ export class ProductsService {
   }
 
   async findOne(idOrSlug: string) {
+    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
+    const cacheKey = CACHE_KEYS.PRODUCTS.DETAIL(idOrSlug);
+
     try {
-      const cached = await this.redis.client.get(`product:detail:${idOrSlug}`);
+      const cached = await this.redis.client.get(cacheKey);
       if (cached) {
-        this.logger.log(`[Redis] Cache Hit: product:detail:${idOrSlug}`);
         return cached;
       }
     } catch (error) {}
-
-    this.logger.log(`[Redis] Cache Miss: product:detail:${idOrSlug}`);
-
-    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
 
     const product = await this.prisma.product.findFirst({
       where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
@@ -200,10 +194,10 @@ export class ProductsService {
     }
 
     try {
-      await this.redis.client.set(`product:detail:${idOrSlug}`, product, { ex: 43200 });
+      await this.redis.client.set(CACHE_KEYS.PRODUCTS.DETAIL(idOrSlug), product, { ex: CACHE_TTL.TWELVE_HOURS });
       const otherKey = isUuid ? product.slug : product.id;
       if (otherKey) {
-        await this.redis.client.set(`product:detail:${otherKey}`, product, { ex: 43200 });
+        await this.redis.client.set(CACHE_KEYS.PRODUCTS.DETAIL(otherKey), product, { ex: CACHE_TTL.TWELVE_HOURS });
       }
     } catch (error) {}
 
@@ -347,16 +341,16 @@ export class ProductsService {
     });
 
     try {
-      await this.redis.client.del(`product:detail:${id}`);
+      await this.redis.client.del(CACHE_KEYS.PRODUCTS.DETAIL(id));
       if (product.slug) {
-        await this.redis.client.del(`product:detail:${product.slug}`);
+        await this.redis.client.del(CACHE_KEYS.PRODUCTS.DETAIL(product.slug));
       }
       if (updatedProduct.slug && updatedProduct.slug !== product.slug) {
-        await this.redis.client.del(`product:detail:${updatedProduct.slug}`);
+        await this.redis.client.del(CACHE_KEYS.PRODUCTS.DETAIL(updatedProduct.slug));
       }
 
       if (product.isFeatured || updatedProduct.isFeatured) {
-        const keys = await this.redis.client.keys('products:featured:*');
+        const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX);
         if (keys.length > 0) {
           await this.redis.client.del(...keys);
         }
@@ -381,12 +375,12 @@ export class ProductsService {
     await this.prisma.product.delete({ where: { id } });
 
     try {
-      await this.redis.client.del(`product:detail:${id}`);
+      await this.redis.client.del(CACHE_KEYS.PRODUCTS.DETAIL(id));
       if (product.slug) {
-        await this.redis.client.del(`product:detail:${product.slug}`);
+        await this.redis.client.del(CACHE_KEYS.PRODUCTS.DETAIL(product.slug));
       }
       if (product.isFeatured) {
-        const keys = await this.redis.client.keys('products:featured:*');
+        const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX);
         if (keys.length > 0) {
           await this.redis.client.del(...keys);
         }
