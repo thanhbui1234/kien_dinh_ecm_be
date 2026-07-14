@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis.service';
-import { UpdateSettingDto, SloganDto, TimelineDto } from './dto/settings.dto';
+import { UpdateSettingDto, SloganDto, TimelineDto, BannerDto } from './dto/settings.dto';
 import { CACHE_KEYS } from '../../common/constants/cache.constant';
 
 @Injectable()
@@ -111,6 +111,39 @@ export class SettingsService {
   async deleteTimeline(id: string) {
     const result = await this.prisma.companyTimeline.delete({ where: { id } });
     try { await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_TIMELINES); } catch (e) {}
+    return result;
+  }
+
+  // --- BANNERS ---
+  async getBanners() {
+    try {
+      const cached = await this.redis.client.get(CACHE_KEYS.SETTINGS.BANNERS);
+      if (cached) {
+        return cached;
+      }
+    } catch (e) {}
+
+    const banners = await this.prisma.banner.findMany({ 
+      where: { status: true },
+      orderBy: { orderIndex: 'asc' } 
+    });
+
+    try {
+      await this.redis.client.set(CACHE_KEYS.SETTINGS.BANNERS, banners);
+    } catch (e) {}
+
+    return banners;
+  }
+
+  async createBanner(dto: BannerDto) {
+    const result = await this.prisma.banner.create({ data: dto });
+    try { await this.redis.client.del(CACHE_KEYS.SETTINGS.BANNERS); } catch (e) {}
+    return result;
+  }
+
+  async deleteBanner(id: string) {
+    const result = await this.prisma.banner.delete({ where: { id } });
+    try { await this.redis.client.del(CACHE_KEYS.SETTINGS.BANNERS); } catch (e) {}
     return result;
   }
 }
