@@ -87,10 +87,11 @@ NestJS 11 backend. Global providers are wired in `AppModule`.
 
 We use **Upstash Redis** (`@upstash/redis`) to offload high-traffic Postgres queries.
 - `RedisModule` and `RedisService` are globally exported from `src/database/`.
-- Caching is manually implemented inside Feature Services (e.g., `CategoriesService`, `ProductsService`) for fine-grained key management and TTL control.
+- **Centralized Keys:** Cache keys and TTLs are centrally defined in `src/common/constants/cache.constant.ts` to avoid magic strings/numbers.
 - **Golden Rule:** Always wrap `.get()`, `.set()`, and `.del()` in `try...catch` blocks. If Redis fails, the app MUST silently fallback to Prisma queries. NEVER let a cache failure crash the request.
-- **Invalidation:** Admin CRUD actions must systematically clear related keys (e.g., `this.redis.client.del(...)`).
-- **Documentation:** See `REDIS_CACHE.md` at the project root for the active key matrix and future targets.
+- **Invalidation:** Admin CRUD actions must systematically clear related keys, using exact keys or pattern matching (`this.redis.client.keys(...)` followed by `del(...)`).
+- **Clean Architecture:** Service-level console logging for Cache Hits/Misses has been removed to keep business logic clean. Only global HTTP requests are logged via `LoggerMiddleware`.
+- **Database Performance:** For read queries (or Cache Misses), standard `B-Tree Composite Indexes` (`@@index([status, createdAt])`) have been applied to large-growth tables (`Project`, `JobPost`, `ContactRequest`, `Product`) to ensure O(log N) fetching without Sequential Scans.
 
 ## Database (Prisma + Neon)
 

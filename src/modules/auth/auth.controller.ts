@@ -5,8 +5,11 @@ import { RefreshDto } from './dto/refresh.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '../../common/decorators/api-success-response.decorator';
+import { TokenResponseDto, UserProfileDto } from './dto/auth-response.dto';
 
 @ApiTags('Auth')
+@ApiStandardErrors()
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -19,6 +22,7 @@ export class AuthController {
     description: 'Đăng nhập bằng email và password',
   })
   @ApiBody({ type: LoginDto })
+  @ApiSuccessResponse({ model: TokenResponseDto, status: 201, description: 'Đăng nhập thành công' })
   @Public()
   @Post('login')
   async login(@Body() loginDto: LoginDto) {
@@ -33,6 +37,7 @@ export class AuthController {
     description: 'Gửi Refresh Token để lấy cặp Token mới',
   })
   @ApiBody({ type: RefreshDto })
+  @ApiSuccessResponse({ model: TokenResponseDto, status: 201, description: 'Làm mới token thành công' })
   @Public()
   @Post('refresh')
   async refresh(@Body() refreshDto: RefreshDto) {
@@ -47,6 +52,7 @@ export class AuthController {
     description: 'Xoá bỏ Refresh Token của người dùng',
   })
   @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ model: Boolean, status: 201, description: 'Đăng xuất thành công' })
   @Post('logout')
   async logout(@CurrentUser('userId') userId: string) {
     return this.authService.logout(userId);
@@ -60,6 +66,7 @@ export class AuthController {
     description: 'Trả về dữ liệu của user đang đăng nhập hiện tại',
   })
   @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ model: UserProfileDto, description: 'Lấy thông tin thành công' })
   @Get('me')
   async getProfile(@CurrentUser('userId') userId: string) {
     return this.authService.getMe(userId);
