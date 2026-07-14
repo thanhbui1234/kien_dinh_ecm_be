@@ -60,3 +60,21 @@ export class TimelineResponseDto extends TimelineDto {
   @ApiProperty({ description: 'ID' })
   id: string;
 }
+
+export class BannerDto {
+  @ApiProperty({ description: 'URL hình ảnh banner' })
+  @IsString()
+  @IsNotEmpty()
+  imageUrl: string;
+
+  @ApiProperty({ description: 'Thứ tự hiển thị', default: 0 })
+  orderIndex: number;
+}
+
+export class BannerResponseDto extends BannerDto {
+  @ApiProperty({ description: 'ID' })
+  id: string;
+
+  @ApiProperty({ description: 'Trạng thái hiển thị' })
+  status: boolean;
+}

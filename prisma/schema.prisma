@@ -192,3 +192,13 @@ model CompanyTimeline {
   description String @db.Text
   orderIndex  Int    @default(0)
 }
+
+model Banner {
+  id         String   @id @default(uuid())
+  imageUrl   String
+  orderIndex Int      @default(0)
+  status     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@index([status, orderIndex])
+}

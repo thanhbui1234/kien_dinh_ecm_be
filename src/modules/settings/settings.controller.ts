@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
 import { SettingsService } from './settings.service';
-import { UpdateSettingDto, SettingResponseDto, SloganDto, SloganResponseDto, TimelineDto, TimelineResponseDto } from './dto/settings.dto';
+import { UpdateSettingDto, SettingResponseDto, SloganDto, SloganResponseDto, TimelineDto, TimelineResponseDto, BannerDto, BannerResponseDto } from './dto/settings.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { ApiSuccessResponse, ApiStandardErrors } from '../../common/decorators/api-success-response.decorator';
@@ -76,5 +76,30 @@ export class SettingsController {
   @Delete('timelines/:id')
   deleteTimeline(@Param('id') id: string) {
     return this.settingsService.deleteTimeline(id);
+  }
+
+  // --- BANNERS ---
+  @ApiOperation({ summary: 'Lấy danh sách banner trang chủ' })
+  @ApiSuccessResponse({ model: BannerResponseDto, isArray: true, description: 'Lấy danh sách banner thành công' })
+  @Public()
+  @Get('banners')
+  getBanners() {
+    return this.settingsService.getBanners();
+  }
+
+  @ApiOperation({ summary: 'Thêm banner mới' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ model: BannerResponseDto, status: 201, description: 'Thêm banner thành công' })
+  @Post('banners')
+  createBanner(@Body() dto: BannerDto) {
+    return this.settingsService.createBanner(dto);
+  }
+
+  @ApiOperation({ summary: 'Xóa banner' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ model: BannerResponseDto, description: 'Xóa banner thành công' })
+  @Delete('banners/:id')
+  deleteBanner(@Param('id') id: string) {
+    return this.settingsService.deleteBanner(id);
   }
 }
