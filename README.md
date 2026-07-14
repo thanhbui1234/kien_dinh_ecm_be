@@ -126,6 +126,7 @@ Hệ thống sử dụng cơ chế 2 lớp Token:
 - **1-1 vertical partitioning**: Model nhẹ cho list-scan, model detail cho view chi tiết.
 - **Slug fields**: Có trên mọi content model, unique — dùng làm public URL identifier.
 - **Explicit M2M join tables**: Thay vì Prisma implicit M2M, cho phép mở rộng join-row sau này.
+- **B-Tree Composite Indexes**: Các bảng lớn và dễ bị Sequential Scan (`Product`, `Project`, `JobPost`, `ContactRequest`) đều được đánh index theo cặp trường lọc/sắp xếp (ví dụ `@@index([status, createdAt(sort: Desc)])`) để đảm bảo tốc độ đọc O(log N) cho mọi Dashboard và API.
 
 ---
 
@@ -134,11 +135,15 @@ Hệ thống sử dụng cơ chế 2 lớp Token:
 Dự án sử dụng **Upstash Redis** để giảm tải cho PostgreSQL ở các endpoint có lượng truy cập lớn (Navigation Menu, Homepage Featured Products, Product Detail).
 
 - **Category:** Caching mảng phẳng (`categories:flat`) với TTL 24h.
-- **Product:** Caching chi tiết sản phẩm (`product:detail:<id>` và `product:detail:<slug>`) với TTL 12h. Caching danh sách nổi bật (`products:featured:*`) với TTL 1h.
-- **Smart Invalidation:** Tự động xóa cache (via `RedisService`) khi Admin thực hiện CRUD (thêm, sửa, xóa).
+- **Product:** Caching chi tiết sản phẩm (`product:detail:<id>` / `<slug>`) với TTL 12h. Danh sách nổi bật (`products:featured:*`) với TTL 1h.
+- **Projects:** Danh sách dự án mới nhất (`projects:recent:*`) và chi tiết (`project:detail:<id>`) với TTL 7 ngày.
+- **Jobs:** Danh sách việc làm active (`jobs:list:active:*`) với TTL 24h.
+- **Settings:** Hệ thống config (`system:settings`), Slogans và Timelines được lưu vĩnh viễn (chỉ xóa khi có trigger cập nhật).
+- **Centralized Strategy:** Toàn bộ Keys và TTLs được gom nhóm duy nhất tại `src/common/constants/cache.constant.ts`. Không sử dụng Magic Strings.
+- **Smart Invalidation:** Tự động xóa cache (xóa đích danh hoặc xóa theo Pattern `keys *`) khi Admin thực hiện CRUD (thêm, sửa, xóa).
 - **Graceful Fallback:** Bọc `try...catch` ở mọi bước gọi Redis. Nếu Upstash lỗi, hệ thống tự động fallback query thẳng vào PostgreSQL, đảm bảo app không bị crash (HTTP 500).
 
-> Xem ma trận thiết kế chi tiết và roadmap tại file `REDIS_CACHE.md` (root directory).
+> Xem ma trận thiết kế chi tiết tại file `REDIS_CACHE.md` (root directory).
 
 ---
 
