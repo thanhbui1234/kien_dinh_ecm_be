@@ -1,6 +1,9 @@
 import {
   Controller,
   Post,
+  Get,
+  Delete,
+  Query,
   UploadedFile,
   UseInterceptors,
   BadRequestException,
@@ -13,9 +16,10 @@ import {
   ApiBody,
   ApiOperation,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { UploadService } from './upload.service';
-import { BgOption, UPLOAD_CONSTANTS } from './constants/upload.constant';
+import { UPLOAD_CONSTANTS } from './constants/upload.constant';
 import { AppMessages } from '../../common/constants/messages.constant';
 import { ApiSuccessResponse, ApiStandardErrors } from '../../common/decorators/api-success-response.decorator';
 import { UploadResponseDto } from './dto/upload-response.dto';
@@ -44,16 +48,9 @@ export class UploadController {
           format: 'binary',
           description: 'File ảnh cần tải lên',
         },
-        bgOption: {
+        publicId: {
           type: 'string',
-          enum: [
-            BgOption.NONE,
-            BgOption.TRANSPARENT,
-            BgOption.CLOUDINARY_WHITE,
-          ],
-          description:
-            'Tuỳ chọn xử lý phông nền (none | transparent | cloudinary_white)',
-          default: BgOption.NONE,
+          description: 'Truyền publicId nếu muốn ghi đè (thay thế) ảnh cũ',
         },
       },
     },
@@ -63,7 +60,7 @@ export class UploadController {
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
-    @Body('bgOption') bgOption?: BgOption,
+    @Body('publicId') publicId?: string,
   ) {
     if (!file) {
       throw new BadRequestException(AppMessages.UPLOAD.FILE_NOT_FOUND);
@@ -73,9 +70,39 @@ export class UploadController {
       throw new BadRequestException(AppMessages.UPLOAD.INVALID_FORMAT);
     }
 
-    // Default to NONE if undefined
-    const option = bgOption || BgOption.NONE;
-    const url = await this.uploadService.uploadFile(file, option);
+    const url = await this.uploadService.uploadFile(file, publicId);
     return { url };
+  }
+
+  @ApiOperation({
+    summary: 'Lấy danh sách ảnh',
+    description: 'Lấy danh sách các file ảnh đã upload lên Cloudinary',
+  })
+  @ApiQuery({ name: 'nextCursor', required: false, description: 'Cursor để phân trang' })
+  @Get()
+  async getFiles(@Query('nextCursor') nextCursor?: string) {
+    return this.uploadService.getUploadedFiles(nextCursor);
+  }
+
+  @ApiOperation({
+    summary: 'Xóa ảnh',
+    description: 'Xóa vĩnh viễn một ảnh trên Cloudinary dựa vào publicId',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        publicId: { type: 'string', description: 'ID của ảnh trên Cloudinary' },
+      },
+      required: ['publicId'],
+    },
+  })
+  @Delete()
+  async deleteFile(@Body('publicId') publicId: string) {
+    if (!publicId) {
+      throw new BadRequestException('publicId là bắt buộc');
+    }
+    const result = await this.uploadService.deleteFile(publicId);
+    return { success: true, result };
   }
 }

@@ -3,10 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 import { Readable } from 'stream';
 
-import { removeBackground } from '@imgly/background-removal-node';
+
 
 import { AppMessages } from '../../common/constants/messages.constant';
-import { BgOption, UPLOAD_CONSTANTS } from './constants/upload.constant';
+import { UPLOAD_CONSTANTS } from './constants/upload.constant';
 
 @Injectable()
 export class UploadService {
@@ -21,35 +21,21 @@ export class UploadService {
   /**
    * Upload file lên Cloudinary thông qua stream. Hỗ trợ xoá phông.
    */
-  async uploadFile(
-    file: Express.Multer.File,
-    bgOption: BgOption = BgOption.NONE,
-  ): Promise<string> {
-    let bufferToUpload = file.buffer;
-
-    // Nếu chọn transparent, dùng AI xóa phông cục bộ trước khi upload
-    if (bgOption === BgOption.TRANSPARENT) {
-      try {
-        const inputBlob = new Blob([new Uint8Array(file.buffer)], {
-          type: file.mimetype,
-        });
-        const blob = await removeBackground(inputBlob);
-        const arrayBuffer = await blob.arrayBuffer();
-        bufferToUpload = Buffer.from(arrayBuffer);
-      } catch (err) {
-        console.error('Lỗi xóa phông cục bộ:', err);
-        throw new InternalServerErrorException(
-          AppMessages.UPLOAD.BG_REMOVAL_ERROR,
-        );
-      }
-    }
+  async uploadFile(file: Express.Multer.File, publicId?: string): Promise<string> {
+    const bufferToUpload = file.buffer;
 
     return new Promise((resolve, reject) => {
+      const options: any = {
+        folder: UPLOAD_CONSTANTS.FOLDER,
+      };
+      
+      if (publicId) {
+        options.public_id = publicId.replace(`${UPLOAD_CONSTANTS.FOLDER}/`, '');
+        options.overwrite = true;
+      }
+
       const upload = cloudinary.uploader.upload_stream(
-        {
-          folder: UPLOAD_CONSTANTS.FOLDER,
-          ...(bgOption === BgOption.TRANSPARENT && { format: 'png' }),
-        },
+        options,
         (error, result: UploadApiResponse) => {
           if (error) {
             console.error('Cloudinary Upload Error:', error);
@@ -61,22 +47,61 @@ export class UploadService {
             );
           }
 
-          let finalUrl = result.secure_url;
-
-          // Nếu chọn cloudinary_white, tận dụng tính năng on-the-fly transformation
-          if (bgOption === BgOption.CLOUDINARY_WHITE) {
-            // Chèn e_background_removal,b_white vào sau /upload/
-            finalUrl = finalUrl.replace(
-              '/upload/',
-              '/upload/e_background_removal,b_white/',
-            );
-          }
-
+          const finalUrl = result.secure_url;
           resolve(finalUrl);
         },
       );
 
       Readable.from(bufferToUpload).pipe(upload);
     });
+  }
+
+  /**
+   * Lấy danh sách ảnh từ Cloudinary
+   */
+  async getUploadedFiles(nextCursor?: string, maxResults: number = 30) {
+    try {
+      let expression = `folder:${UPLOAD_CONSTANTS.FOLDER} AND resource_type:image`;
+      const result = await cloudinary.search
+        .expression(expression)
+        .sort_by('created_at', 'desc')
+        .max_results(maxResults)
+        .next_cursor(nextCursor || '')
+        .execute();
+
+      return {
+        resources: result.resources.map((item: any) => ({
+          public_id: item.public_id,
+          secure_url: item.secure_url,
+          format: item.format,
+          width: item.width,
+          height: item.height,
+          bytes: item.bytes,
+          created_at: item.created_at,
+        })),
+        next_cursor: result.next_cursor,
+        total_count: result.total_count,
+      };
+    } catch (error) {
+      console.error('Cloudinary Search Error:', error);
+      throw new InternalServerErrorException(
+        AppMessages.UPLOAD.CLOUDINARY_ERROR + (error.message || JSON.stringify(error))
+      );
+    }
+  }
+
+  /**
+   * Xóa ảnh khỏi Cloudinary
+   */
+  async deleteFile(publicId: string) {
+    try {
+      const result = await cloudinary.uploader.destroy(publicId);
+      return result;
+    } catch (error) {
+      console.error('Cloudinary Delete Error:', error);
+      throw new InternalServerErrorException(
+        AppMessages.UPLOAD.CLOUDINARY_ERROR + (error.message || JSON.stringify(error))
+      );
+    }
   }
 }

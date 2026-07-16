@@ -21,7 +21,6 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
-    "@imgly/background-removal-node": "^1.4.5",
     "@neondatabase/serverless": "^1.1.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
@@ -105,6 +104,9 @@
       "prisma",
       "bcrypt",
       "unrs-resolver"
+    ],
+    "ignoredBuiltDependencies": [
+      "@scarf/scarf"
     ]
   }
 }

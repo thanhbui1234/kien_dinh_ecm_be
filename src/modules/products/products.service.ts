@@ -8,6 +8,7 @@ import { AppMessages } from '../../common/constants/messages.constant';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
+import { generateSlug } from '../../common/utils/string.util';
 
 @Injectable()
 export class ProductsService {
@@ -19,16 +20,20 @@ export class ProductsService {
   async create(createProductDto: CreateProductDto) {
     const { contentDetail, specifications, images, parentId, categoryId, seoMeta, ...productData } = createProductDto;
 
-    const existingProduct = await this.prisma.product.findUnique({
-      where: { slug: productData.slug },
+    let generatedSlug = generateSlug(productData.name);
+    let existingProduct = await this.prisma.product.findUnique({
+      where: { slug: generatedSlug },
     });
-
-    if (existingProduct) {
-      throw new ConflictException({
-        message: AppMessages.PRODUCT.SLUG_EXISTS,
-        errorCode: 'PRODUCT_SLUG_EXISTS',
+    
+    let counter = 1;
+    while (existingProduct) {
+      generatedSlug = `${generateSlug(productData.name)}-${counter}`;
+      existingProduct = await this.prisma.product.findUnique({
+        where: { slug: generatedSlug },
       });
+      counter++;
     }
+    productData.slug = generatedSlug;
 
     const category = await this.prisma.category.findUnique({
       where: { id: categoryId },
@@ -53,6 +58,7 @@ export class ProductsService {
 
     const createData: Prisma.ProductCreateInput = {
       ...productData,
+      slug: productData.slug as string,
       category: { connect: { id: categoryId } },
     };
 
@@ -246,6 +252,10 @@ export class ProductsService {
         message: AppMessages.PRODUCT.NOT_FOUND,
         errorCode: 'PRODUCT_NOT_FOUND',
       });
+    }
+
+    if (productData.slug === '') {
+      delete productData.slug;
     }
 
     if (productData.slug && productData.slug !== product.slug) {
