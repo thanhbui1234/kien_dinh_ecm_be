@@ -179,10 +179,11 @@ model SystemSetting {
 }
 
 model CompanySlogan {
-  id         String @id @default(uuid())
-  title      String
-  icon       String // Tên định danh Icon (Lucide/FontAwesome)
-  orderIndex Int    @default(0)
+  id          String  @id @default(uuid())
+  title       String
+  icon        String // Tên định danh Icon (Lucide/FontAwesome)
+  description String? @db.Text
+  orderIndex  Int     @default(0)
 }
 
 model CompanyTimeline {
@@ -201,7 +202,7 @@ model Banner {
   imageUrl    String
   orderIndex  Int      @default(0)
   status      Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   @@index([status, orderIndex])
 }

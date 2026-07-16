@@ -7,10 +7,10 @@ export class CreateJobDto {
   @IsNotEmpty()
   title: string;
 
-  @ApiProperty({ description: 'Slug định danh' })
+  @ApiPropertyOptional({ description: 'Slug định danh (để trống sẽ tự tạo từ tiêu đề)' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  slug: string;
+  slug?: string;
 
   @ApiPropertyOptional({ description: 'Mức lương', default: 'Cạnh tranh' })
   @IsOptional()

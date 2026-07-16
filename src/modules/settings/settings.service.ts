@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis.service';
-import { UpdateSettingDto, SloganDto, TimelineDto, BannerDto, UpdateBannerDto, UpdateBannerOrdersDto } from './dto/settings.dto';
+import { UpdateSettingDto, SloganDto, TimelineDto, BannerDto, UpdateBannerDto, UpdateBannerOrdersDto, UpdateSloganDto, UpdateSloganOrdersDto, UpdateTimelineDto, UpdateTimelineOrdersDto } from './dto/settings.dto';
 import { CACHE_KEYS } from '../../common/constants/cache.constant';
 
 @Injectable()
@@ -88,6 +88,35 @@ export class SettingsService {
     return result;
   }
 
+  async updateSlogan(id: string, dto: UpdateSloganDto) {
+    const existing = await this.prisma.companySlogan.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException({
+        message: 'Không tìm thấy slogan',
+        errorCode: 'SLOGAN_NOT_FOUND',
+      });
+    }
+    const result = await this.prisma.companySlogan.update({
+      where: { id },
+      data: dto as any,
+    });
+    try { await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_SLOGANS); } catch (e) {}
+    return result;
+  }
+
+  async updateSloganOrders(dto: UpdateSloganOrdersDto) {
+    const result = await this.prisma.$transaction(
+      dto.slogans.map((slogan) =>
+        this.prisma.companySlogan.update({
+          where: { id: slogan.id },
+          data: { orderIndex: slogan.orderIndex },
+        })
+      )
+    );
+    try { await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_SLOGANS); } catch (e) {}
+    return result;
+  }
+
   // --- COMPANY TIMELINE ---
   async getTimelines() {
     try {
@@ -118,6 +147,35 @@ export class SettingsService {
 
   async deleteTimeline(id: string) {
     const result = await this.prisma.companyTimeline.delete({ where: { id } });
+    try { await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_TIMELINES); } catch (e) {}
+    return result;
+  }
+
+  async updateTimeline(id: string, dto: UpdateTimelineDto) {
+    const existing = await this.prisma.companyTimeline.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException({
+        message: 'Không tìm thấy timeline',
+        errorCode: 'TIMELINE_NOT_FOUND',
+      });
+    }
+    const result = await this.prisma.companyTimeline.update({
+      where: { id },
+      data: dto as any,
+    });
+    try { await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_TIMELINES); } catch (e) {}
+    return result;
+  }
+
+  async updateTimelineOrders(dto: UpdateTimelineOrdersDto) {
+    const result = await this.prisma.$transaction(
+      dto.timelines.map((timeline) =>
+        this.prisma.companyTimeline.update({
+          where: { id: timeline.id },
+          data: { orderIndex: timeline.orderIndex },
+        })
+      )
+    );
     try { await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_TIMELINES); } catch (e) {}
     return result;
   }
