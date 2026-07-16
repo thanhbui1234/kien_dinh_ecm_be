@@ -22,6 +22,14 @@ export class ProductsController {
     return this.productsService.create(createProductDto);
   }
 
+  @ApiOperation({ summary: 'Nhân bản sản phẩm' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ model: ProductResponseDto, status: 201, description: 'Nhân bản sản phẩm thành công' })
+  @Post(':id/copy')
+  copy(@Param('id') id: string) {
+    return this.productsService.copy(id);
+  }
+
   @ApiOperation({ summary: 'Lấy danh sách sản phẩm (có phân trang & lọc)' })
   @ApiSuccessResponse({ model: ProductResponseDto, isPaginated: true, description: 'Lấy danh sách sản phẩm thành công' })
   @Public()

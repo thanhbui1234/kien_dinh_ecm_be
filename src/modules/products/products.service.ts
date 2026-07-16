@@ -104,6 +104,84 @@ export class ProductsService {
     return newProduct;
   }
 
+  async copy(id: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: {
+        detail: true,
+        images: true,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException({
+        message: AppMessages.PRODUCT.NOT_FOUND,
+        errorCode: 'PRODUCT_NOT_FOUND',
+      });
+    }
+
+    const newName = `${product.name} (Copy)`;
+    let generatedSlug = generateSlug(newName);
+    let existingProduct = await this.prisma.product.findUnique({
+      where: { slug: generatedSlug },
+    });
+    
+    let counter = 1;
+    while (existingProduct) {
+      generatedSlug = `${generateSlug(newName)}-${counter}`;
+      existingProduct = await this.prisma.product.findUnique({
+        where: { slug: generatedSlug },
+      });
+      counter++;
+    }
+
+    const createData: Prisma.ProductCreateInput = {
+      name: newName,
+      slug: generatedSlug,
+      price: product.price,
+      thumbnailUrl: product.thumbnailUrl,
+      isFeatured: false,
+      status: false,
+      category: { connect: { id: product.categoryId } },
+    };
+
+    if (product.parentId) {
+      createData.parent = { connect: { id: product.parentId } };
+    }
+
+    if (product.detail) {
+      createData.detail = {
+        create: {
+          contentDetail: product.detail.contentDetail,
+          specifications: product.detail.specifications || {},
+          seoMeta: product.detail.seoMeta || Prisma.JsonNull,
+        },
+      };
+    }
+
+    if (product.images && product.images.length > 0) {
+      createData.images = {
+        create: product.images.map((img) => ({
+          imageUrl: img.imageUrl,
+          isMain: img.isMain,
+          orderIndex: img.orderIndex,
+        })),
+      };
+    }
+
+    const newProduct = await this.prisma.product.create({
+      data: createData,
+      include: {
+        detail: true,
+        images: true,
+        category: true,
+        parent: true,
+      },
+    });
+
+    return newProduct;
+  }
+
   async findAll(filterDto: GetProductsFilterDto) {
     const { search, categoryId, status, isFeatured, sortBy, skip, limit } = filterDto;
 
