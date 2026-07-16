@@ -25,10 +25,10 @@ export class CreateProductDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ description: 'Slug định danh' })
+  @ApiPropertyOptional({ description: 'Slug định danh' })
   @IsString()
-  @IsNotEmpty()
-  slug: string;
+  @IsOptional()
+  slug?: string;
 
   @ApiPropertyOptional({ description: 'Giá sản phẩm' })
   @IsNumber()
