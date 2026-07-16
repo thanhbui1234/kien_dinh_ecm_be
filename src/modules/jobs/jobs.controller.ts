@@ -33,9 +33,9 @@ export class JobsController {
   @ApiOperation({ summary: 'Lấy chi tiết bài đăng theo slug' })
   @ApiSuccessResponse({ model: JobResponseDto, description: 'Lấy chi tiết thành công' })
   @Public()
-  @Get(':slug')
-  findOne(@Param('slug') slug: string) {
-    return this.jobsService.findOne(slug);
+  @Get(':idOrSlug')
+  findOne(@Param('idOrSlug') idOrSlug: string) {
+    return this.jobsService.findOne(idOrSlug);
   }
 
   @ApiOperation({ summary: 'Cập nhật bài đăng' })

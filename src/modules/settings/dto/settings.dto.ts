@@ -1,5 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty } from 'class-validator';
+import { ApiProperty, PartialType } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class UpdateSettingDto {
   @ApiProperty({ description: 'Giá trị cấu hình' })
@@ -27,8 +28,10 @@ export class SloganDto {
   @IsNotEmpty()
   icon: string;
 
-  @ApiProperty({ description: 'Thứ tự hiển thị', default: 0 })
-  orderIndex: number;
+  @ApiProperty({ description: 'Thứ tự hiển thị', default: 0, required: false })
+  @IsOptional()
+  @IsNumber()
+  orderIndex?: number;
 }
 
 export class TimelineDto {
@@ -47,8 +50,10 @@ export class TimelineDto {
   @IsNotEmpty()
   description: string;
 
-  @ApiProperty({ description: 'Thứ tự hiển thị', default: 0 })
-  orderIndex: number;
+  @ApiProperty({ description: 'Thứ tự hiển thị', default: 0, required: false })
+  @IsOptional()
+  @IsNumber()
+  orderIndex?: number;
 }
 
 export class SloganResponseDto extends SloganDto {
@@ -62,13 +67,37 @@ export class TimelineResponseDto extends TimelineDto {
 }
 
 export class BannerDto {
+  @ApiProperty({ description: 'Tiêu đề banner', required: false })
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @ApiProperty({ description: 'Mô tả banner', required: false })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiProperty({ description: 'Đường dẫn liên kết', required: false })
+  @IsOptional()
+  @IsString()
+  link?: string;
+
   @ApiProperty({ description: 'URL hình ảnh banner' })
   @IsString()
   @IsNotEmpty()
   imageUrl: string;
 
-  @ApiProperty({ description: 'Thứ tự hiển thị', default: 0 })
-  orderIndex: number;
+  @ApiProperty({ description: 'Thứ tự hiển thị', default: 0, required: false })
+  @IsOptional()
+  @IsNumber()
+  orderIndex?: number;
+}
+
+export class UpdateBannerDto extends PartialType(BannerDto) {
+  @ApiProperty({ description: 'Trạng thái hiển thị', required: false })
+  @IsBoolean()
+  @IsOptional()
+  status?: boolean;
 }
 
 export class BannerResponseDto extends BannerDto {
@@ -77,4 +106,23 @@ export class BannerResponseDto extends BannerDto {
 
   @ApiProperty({ description: 'Trạng thái hiển thị' })
   status: boolean;
+}
+
+export class UpdateBannerOrderDto {
+  @ApiProperty({ description: 'ID của banner' })
+  @IsString()
+  @IsNotEmpty()
+  id: string;
+
+  @ApiProperty({ description: 'Thứ tự mới' })
+  @IsNumber()
+  orderIndex: number;
+}
+
+export class UpdateBannerOrdersDto {
+  @ApiProperty({ type: [UpdateBannerOrderDto], description: 'Danh sách banner với thứ tự mới' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateBannerOrderDto)
+  banners: UpdateBannerOrderDto[];
 }

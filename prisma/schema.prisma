@@ -194,10 +194,13 @@ model CompanyTimeline {
 }
 
 model Banner {
-  id         String   @id @default(uuid())
-  imageUrl   String
-  orderIndex Int      @default(0)
-  status     Boolean  @default(true)
+  id          String   @id @default(uuid())
+  title       String?
+  description String?
+  link        String?
+  imageUrl    String
+  orderIndex  Int      @default(0)
+  status      Boolean  @default(true)
   createdAt  DateTime @default(now())
 
   @@index([status, orderIndex])
