@@ -7,6 +7,7 @@ import { GetJobsFilterDto } from './dto/get-jobs-filter.dto';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
+import { generateSlug } from '../../common/utils/string.util';
 
 @Injectable()
 export class JobsService {
@@ -18,19 +19,28 @@ export class JobsService {
   async create(createJobDto: CreateJobDto) {
     const { sections, ...jobData } = createJobDto;
 
+    if (!jobData.slug && jobData.title) {
+      jobData.slug = generateSlug(jobData.title);
+    }
+
     const existingJob = await this.prisma.jobPost.findUnique({
       where: { slug: jobData.slug },
     });
 
     if (existingJob) {
-      throw new ConflictException({
-        message: 'Slug bài đăng đã tồn tại',
-        errorCode: 'JOB_SLUG_EXISTS',
-      });
+      if (!createJobDto.slug) {
+        jobData.slug = `${jobData.slug}-${Date.now()}`;
+      } else {
+        throw new ConflictException({
+          message: 'Slug bài đăng đã tồn tại',
+          errorCode: 'JOB_SLUG_EXISTS',
+        });
+      }
     }
 
     const createData: Prisma.JobPostCreateInput = {
       ...jobData,
+      slug: jobData.slug as string,
       detail: {
         create: {
           sections,

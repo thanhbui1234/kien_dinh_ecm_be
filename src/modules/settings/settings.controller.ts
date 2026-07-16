@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
 import { SettingsService } from './settings.service';
-import { UpdateSettingDto, SettingResponseDto, SloganDto, SloganResponseDto, TimelineDto, TimelineResponseDto, BannerDto, BannerResponseDto, UpdateBannerOrdersDto, UpdateBannerDto } from './dto/settings.dto';
+import { UpdateSettingDto, SettingResponseDto, SloganDto, SloganResponseDto, TimelineDto, TimelineResponseDto, BannerDto, BannerResponseDto, UpdateBannerOrdersDto, UpdateBannerDto, UpdateSloganDto, UpdateSloganOrdersDto, UpdateTimelineDto, UpdateTimelineOrdersDto } from './dto/settings.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { ApiSuccessResponse, ApiStandardErrors } from '../../common/decorators/api-success-response.decorator';
@@ -45,6 +45,22 @@ export class SettingsController {
     return this.settingsService.createSlogan(dto);
   }
 
+  @ApiOperation({ summary: 'Cập nhật thông tin slogan' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ model: SloganResponseDto, description: 'Cập nhật slogan thành công' })
+  @Patch('slogans/:id')
+  updateSlogan(@Param('id') id: string, @Body() dto: UpdateSloganDto) {
+    return this.settingsService.updateSlogan(id, dto);
+  }
+
+  @ApiOperation({ summary: 'Cập nhật thứ tự slogan hàng loạt' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ model: SloganResponseDto, isArray: true, description: 'Cập nhật thứ tự thành công' })
+  @Patch('slogans/order')
+  updateSloganOrders(@Body() dto: UpdateSloganOrdersDto) {
+    return this.settingsService.updateSloganOrders(dto);
+  }
+
   @ApiOperation({ summary: 'Xóa slogan' })
   @ApiBearerAuth('JWT-auth')
   @ApiSuccessResponse({ model: SloganResponseDto, description: 'Xóa slogan thành công' })
@@ -68,6 +84,22 @@ export class SettingsController {
   @Post('timelines')
   createTimeline(@Body() dto: TimelineDto) {
     return this.settingsService.createTimeline(dto);
+  }
+
+  @ApiOperation({ summary: 'Cập nhật thông tin timeline' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ model: TimelineResponseDto, description: 'Cập nhật timeline thành công' })
+  @Patch('timelines/:id')
+  updateTimeline(@Param('id') id: string, @Body() dto: UpdateTimelineDto) {
+    return this.settingsService.updateTimeline(id, dto);
+  }
+
+  @ApiOperation({ summary: 'Cập nhật thứ tự timeline hàng loạt' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ model: TimelineResponseDto, isArray: true, description: 'Cập nhật thứ tự thành công' })
+  @Patch('timelines/order')
+  updateTimelineOrders(@Body() dto: UpdateTimelineOrdersDto) {
+    return this.settingsService.updateTimelineOrders(dto);
   }
 
   @ApiOperation({ summary: 'Xóa mốc lịch sử' })
