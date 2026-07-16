@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis.service';
-import { UpdateSettingDto, SloganDto, TimelineDto, BannerDto } from './dto/settings.dto';
+import { UpdateSettingDto, SloganDto, TimelineDto, BannerDto, UpdateBannerDto, UpdateBannerOrdersDto } from './dto/settings.dto';
 import { CACHE_KEYS } from '../../common/constants/cache.constant';
 
 @Injectable()
@@ -73,6 +73,10 @@ export class SettingsService {
   }
 
   async createSlogan(dto: SloganDto) {
+    if (dto.orderIndex === undefined) {
+      const maxOrder = await this.prisma.companySlogan.aggregate({ _max: { orderIndex: true } });
+      dto.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
+    }
     const result = await this.prisma.companySlogan.create({ data: dto });
     try { await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_SLOGANS); } catch (e) {}
     return result;
@@ -103,6 +107,10 @@ export class SettingsService {
   }
 
   async createTimeline(dto: TimelineDto) {
+    if (dto.orderIndex === undefined) {
+      const maxOrder = await this.prisma.companyTimeline.aggregate({ _max: { orderIndex: true } });
+      dto.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
+    }
     const result = await this.prisma.companyTimeline.create({ data: dto });
     try { await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_TIMELINES); } catch (e) {}
     return result;
@@ -136,13 +144,46 @@ export class SettingsService {
   }
 
   async createBanner(dto: BannerDto) {
-    const result = await this.prisma.banner.create({ data: dto });
+    if (dto.orderIndex === undefined) {
+      const maxOrder = await this.prisma.banner.aggregate({ _max: { orderIndex: true } });
+      dto.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
+    }
+    const result = await this.prisma.banner.create({ data: dto as any });
+    try { await this.redis.client.del(CACHE_KEYS.SETTINGS.BANNERS); } catch (e) {}
+    return result;
+  }
+
+  async updateBanner(id: string, dto: UpdateBannerDto) {
+    const existing = await this.prisma.banner.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException({
+        message: 'Không tìm thấy banner',
+        errorCode: 'BANNER_NOT_FOUND',
+      });
+    }
+    const result = await this.prisma.banner.update({
+      where: { id },
+      data: dto as any,
+    });
     try { await this.redis.client.del(CACHE_KEYS.SETTINGS.BANNERS); } catch (e) {}
     return result;
   }
 
   async deleteBanner(id: string) {
     const result = await this.prisma.banner.delete({ where: { id } });
+    try { await this.redis.client.del(CACHE_KEYS.SETTINGS.BANNERS); } catch (e) {}
+    return result;
+  }
+
+  async updateBannerOrders(dto: UpdateBannerOrdersDto) {
+    const result = await this.prisma.$transaction(
+      dto.banners.map((banner) =>
+        this.prisma.banner.update({
+          where: { id: banner.id },
+          data: { orderIndex: banner.orderIndex },
+        })
+      )
+    );
     try { await this.redis.client.del(CACHE_KEYS.SETTINGS.BANNERS); } catch (e) {}
     return result;
   }

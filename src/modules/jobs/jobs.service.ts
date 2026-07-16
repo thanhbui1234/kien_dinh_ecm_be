@@ -104,9 +104,11 @@ export class JobsService {
     return result;
   }
 
-  async findOne(slug: string) {
-    const job = await this.prisma.jobPost.findUnique({
-      where: { slug },
+  async findOne(idOrSlug: string) {
+    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
+
+    const job = await this.prisma.jobPost.findFirst({
+      where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
       include: {
         detail: true,
       },
