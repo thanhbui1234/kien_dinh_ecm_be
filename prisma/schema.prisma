@@ -36,6 +36,7 @@ model Category {
   projectMappings ProjectCategory[]
 
   @@index([parentId])
+  @@index([orderIndex])
 }
 
 // ==========================================
@@ -179,6 +180,28 @@ model JobPostDetail {
 // ==========================================
 // 7. CẤU HÌNH HỆ THỐNG & TRANG ABOUT US DYNAMIC
 // ==========================================
+model CompanyInfo {
+  id         String @id @default(uuid())
+  label      String
+  value      String
+  orderIndex Int    @default(0)
+
+  @@index([orderIndex])
+}
+
+model Facility {
+  id         String  @id @default(uuid())
+  region     String
+  country    String
+  name       String
+  address    String
+  phone      String
+  imageUrl   String?
+  orderIndex Int     @default(0)
+
+  @@index([orderIndex])
+}
+
 model SystemSetting {
   id    String @id @default(uuid())
   key   String @unique // hotline, zalo_url, hr_email
@@ -191,6 +214,8 @@ model CompanySlogan {
   icon        String // Tên định danh Icon (Lucide/FontAwesome)
   description String? @db.Text
   orderIndex  Int     @default(0)
+
+  @@index([orderIndex])
 }
 
 model CompanyTimeline {
@@ -199,6 +224,8 @@ model CompanyTimeline {
   title       String
   description String @db.Text
   orderIndex  Int    @default(0)
+
+  @@index([orderIndex])
 }
 
 model Banner {

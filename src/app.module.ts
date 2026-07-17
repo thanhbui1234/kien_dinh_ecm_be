@@ -21,6 +21,7 @@ import { ProjectsModule } from './modules/projects/projects.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { AboutModule } from './modules/about/about.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 /**
@@ -46,6 +47,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     LeadsModule,
     SettingsModule,
     DashboardModule,
+    AboutModule,
   ],
   controllers: [],
   providers: [
