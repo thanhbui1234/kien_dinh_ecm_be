@@ -7,10 +7,10 @@ export class CreateProjectDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ description: 'Slug định danh' })
+  @ApiPropertyOptional({ description: 'Slug định danh (để trống sẽ tự tạo từ tên dự án)' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  slug: string;
+  slug?: string;
 
   @ApiProperty({ description: 'Mô tả ngắn gọn' })
   @IsString()

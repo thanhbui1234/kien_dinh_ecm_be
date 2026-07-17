@@ -21,6 +21,7 @@ import { ProjectsModule } from './modules/projects/projects.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 /**
  * Module gốc của ứng dụng NestJS.
@@ -44,6 +45,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     JobsModule,
     LeadsModule,
     SettingsModule,
+    DashboardModule,
   ],
   controllers: [],
   providers: [

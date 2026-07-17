@@ -25,6 +25,7 @@ export class LeadsController {
   @ApiOperation({ summary: 'Lấy danh sách yêu cầu liên hệ (Admin)' })
   @ApiBearerAuth('JWT-auth')
   @ApiSuccessResponse({ model: LeadResponseDto, isPaginated: true, description: 'Lấy danh sách thành công' })
+  @Public()
   @Get()
   findAll(@Query() filterDto: GetLeadsFilterDto) {
     return this.leadsService.findAll(filterDto);

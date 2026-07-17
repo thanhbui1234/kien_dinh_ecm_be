@@ -17,7 +17,7 @@ export class LeadsService {
   }
 
   async findAll(filterDto: GetLeadsFilterDto) {
-    const { search, status } = filterDto;
+    const { search, status, priority, targetProductId, startDate, endDate, sortBy } = filterDto;
     const skip = filterDto.skip;
     const limit = filterDto.limit ?? 10;
 
@@ -35,12 +35,40 @@ export class LeadsService {
       where.status = status;
     }
 
+    if (priority) {
+      where.priority = priority;
+    }
+
+    if (targetProductId) {
+      where.targetProductId = targetProductId;
+    }
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
+      }
+    }
+
+    let orderBy: Prisma.ContactRequestOrderByWithRelationInput = { createdAt: 'desc' };
+    if (sortBy) {
+      const [field, direction] = sortBy.split('_');
+      if (field && direction && (direction === 'asc' || direction === 'desc')) {
+        orderBy = { [field]: direction };
+      }
+    }
+
     const [leads, total] = await this.prisma.$transaction([
       this.prisma.contactRequest.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         include: { product: { select: { id: true, name: true } } },
       }),
       this.prisma.contactRequest.count({ where }),

@@ -71,6 +71,10 @@ export class CreateProductDto {
   @IsOptional()
   specifications?: any;
 
+  @ApiPropertyOptional({ description: 'Chức năng nổi bật dạng JSON động' })
+  @IsOptional()
+  features?: any;
+
   @ApiPropertyOptional({ description: 'Dữ liệu tối ưu SEO (Title, Description, Keywords)' })
   @IsObject()
   @IsOptional()

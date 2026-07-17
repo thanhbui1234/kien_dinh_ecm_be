@@ -8,6 +8,7 @@ import { AppMessages } from '../../common/constants/messages.constant';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
+import { generateSlug } from '../../common/utils/string.util';
 
 @Injectable()
 export class ProjectsService {
@@ -19,19 +20,28 @@ export class ProjectsService {
   async create(createProjectDto: CreateProjectDto) {
     const { contentDetail, productIds, categoryIds, ...projectData } = createProjectDto;
 
+    if (!projectData.slug && projectData.name) {
+      projectData.slug = generateSlug(projectData.name);
+    }
+
     const existingProject = await this.prisma.project.findUnique({
       where: { slug: projectData.slug },
     });
 
     if (existingProject) {
-      throw new ConflictException({
-        message: 'Slug dự án đã tồn tại',
-        errorCode: 'PROJECT_SLUG_EXISTS',
-      });
+      if (!createProjectDto.slug) {
+        projectData.slug = `${projectData.slug}-${Date.now()}`;
+      } else {
+        throw new ConflictException({
+          message: 'Slug dự án đã tồn tại',
+          errorCode: 'PROJECT_SLUG_EXISTS',
+        });
+      }
     }
 
     const createData: Prisma.ProjectCreateInput = {
       ...projectData,
+      slug: projectData.slug as string,
     };
 
     if (contentDetail) {

@@ -34,7 +34,7 @@ export class GetProductsFilterDto extends PageOptionsDto {
   @IsOptional()
   isFeatured?: boolean;
 
-  @ApiPropertyOptional({ description: 'Sắp xếp theo (VD: category, price, createdAt)', default: 'createdAt' })
+  @ApiPropertyOptional({ description: 'Sắp xếp theo (VD: category, price, createdAt, viewCount)', default: 'createdAt' })
   @IsString()
   @IsOptional()
   sortBy?: string;

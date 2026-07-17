@@ -12,4 +12,10 @@ export class UpdateLeadStatusDto {
   @IsOptional()
   @IsString()
   adminNote?: string;
+
+  @ApiPropertyOptional({ description: 'Mức độ ưu tiên (HIGH, MEDIUM, LOW)' })
+  @IsOptional()
+  @IsString()
+  @IsIn(['HIGH', 'MEDIUM', 'LOW'])
+  priority?: string;
 }

@@ -18,7 +18,7 @@ export class ProductsService {
   ) {}
 
   async create(createProductDto: CreateProductDto) {
-    const { contentDetail, specifications, images, parentId, categoryId, seoMeta, ...productData } = createProductDto;
+    const { contentDetail, specifications, features, images, parentId, categoryId, seoMeta, ...productData } = createProductDto;
 
     let generatedSlug = generateSlug(productData.name);
     let existingProduct = await this.prisma.product.findUnique({
@@ -66,11 +66,12 @@ export class ProductsService {
       createData.parent = { connect: { id: parentId } };
     }
 
-    if (contentDetail !== undefined || specifications !== undefined || seoMeta !== undefined) {
+    if (contentDetail !== undefined || specifications !== undefined || features !== undefined || seoMeta !== undefined) {
       createData.detail = {
         create: {
           contentDetail: contentDetail || '',
           specifications: specifications || {},
+          features: features || Prisma.JsonNull,
           seoMeta: seoMeta || Prisma.JsonNull,
         },
       };
@@ -154,6 +155,7 @@ export class ProductsService {
         create: {
           contentDetail: product.detail.contentDetail,
           specifications: product.detail.specifications || {},
+          features: product.detail.features || Prisma.JsonNull,
           seoMeta: product.detail.seoMeta || Prisma.JsonNull,
         },
       };
@@ -220,6 +222,8 @@ export class ProductsService {
       ];
     } else if (sortBy === 'price') {
       orderBy = { price: 'asc' };
+    } else if (sortBy === 'viewCount') {
+      orderBy = { viewCount: 'desc' };
     }
 
     const [items, totalItems] = await this.prisma.$transaction([
@@ -318,7 +322,7 @@ export class ProductsService {
   }
 
   async update(id: string, updateProductDto: UpdateProductDto) {
-    const { contentDetail, specifications, images, parentId, categoryId, seoMeta, ...productData } = updateProductDto;
+    const { contentDetail, specifications, features, images, parentId, categoryId, seoMeta, ...productData } = updateProductDto;
 
     const product = await this.prisma.product.findUnique({
       where: { id },
@@ -394,10 +398,11 @@ export class ProductsService {
       }
     }
 
-    if (contentDetail !== undefined || specifications !== undefined || seoMeta !== undefined) {
+    if (contentDetail !== undefined || specifications !== undefined || features !== undefined || seoMeta !== undefined) {
       const detailUpdate = {
         contentDetail: contentDetail !== undefined ? contentDetail : product.detail?.contentDetail || '',
         specifications: specifications !== undefined ? specifications : product.detail?.specifications || {},
+        features: features !== undefined ? features : product.detail?.features || Prisma.JsonNull,
         seoMeta: seoMeta !== undefined ? seoMeta : product.detail?.seoMeta || Prisma.JsonNull,
       };
 

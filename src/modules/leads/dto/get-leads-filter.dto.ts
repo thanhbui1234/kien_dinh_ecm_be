@@ -12,4 +12,29 @@ export class GetLeadsFilterDto extends PageOptionsDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @ApiPropertyOptional({ description: 'Lọc theo mức độ ưu tiên (HIGH, MEDIUM, LOW)' })
+  @IsOptional()
+  @IsString()
+  priority?: string;
+
+  @ApiPropertyOptional({ description: 'Từ ngày (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @ApiPropertyOptional({ description: 'Đến ngày (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsString()
+  endDate?: string;
+
+  @ApiPropertyOptional({ description: 'ID Sản phẩm khách hàng quan tâm' })
+  @IsOptional()
+  @IsString()
+  targetProductId?: string;
+
+  @ApiPropertyOptional({ description: 'Sắp xếp theo (VD: createdAt_desc, createdAt_asc)', default: 'createdAt_desc' })
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
 }
