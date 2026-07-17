@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsIn } from 'class-validator';
+import { LeadPriority } from '@prisma/client';
 
 export class UpdateLeadStatusDto {
   @ApiProperty({ description: 'Trạng thái lead (PENDING, CONTACTED, SPAM)' })
@@ -13,9 +14,8 @@ export class UpdateLeadStatusDto {
   @IsString()
   adminNote?: string;
 
-  @ApiPropertyOptional({ description: 'Mức độ ưu tiên (HIGH, MEDIUM, LOW)' })
+  @ApiPropertyOptional({ description: 'Mức độ ưu tiên (HIGH, MEDIUM, LOW)', enum: LeadPriority })
   @IsOptional()
-  @IsString()
-  @IsIn(['HIGH', 'MEDIUM', 'LOW'])
-  priority?: string;
+  @IsEnum(LeadPriority)
+  priority?: LeadPriority;
 }

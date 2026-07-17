@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PageOptionsDto } from '../../../common/dto/pagination.dto';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsEnum } from 'class-validator';
+import { LeadPriority } from '@prisma/client';
 
 export class GetLeadsFilterDto extends PageOptionsDto {
   @ApiPropertyOptional({ description: 'Tìm kiếm theo tên, số điện thoại, email' })
@@ -13,10 +14,10 @@ export class GetLeadsFilterDto extends PageOptionsDto {
   @IsString()
   status?: string;
 
-  @ApiPropertyOptional({ description: 'Lọc theo mức độ ưu tiên (HIGH, MEDIUM, LOW)' })
+  @ApiPropertyOptional({ description: 'Lọc theo mức độ ưu tiên (HIGH, MEDIUM, LOW)', enum: LeadPriority })
   @IsOptional()
-  @IsString()
-  priority?: string;
+  @IsEnum(LeadPriority)
+  priority?: LeadPriority;
 
   @ApiPropertyOptional({ description: 'Từ ngày (YYYY-MM-DD)' })
   @IsOptional()
