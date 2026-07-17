@@ -179,6 +179,24 @@ model JobPostDetail {
 // ==========================================
 // 7. CẤU HÌNH HỆ THỐNG & TRANG ABOUT US DYNAMIC
 // ==========================================
+model CompanyInfo {
+  id         String @id @default(uuid())
+  label      String
+  value      String
+  orderIndex Int    @default(0)
+}
+
+model Facility {
+  id         String  @id @default(uuid())
+  region     String
+  country    String
+  name       String
+  address    String
+  phone      String
+  imageUrl   String?
+  orderIndex Int     @default(0)
+}
+
 model SystemSetting {
   id    String @id @default(uuid())
   key   String @unique // hotline, zalo_url, hr_email
