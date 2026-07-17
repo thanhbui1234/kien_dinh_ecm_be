@@ -36,6 +36,7 @@ model Category {
   projectMappings ProjectCategory[]
 
   @@index([parentId])
+  @@index([orderIndex])
 }
 
 // ==========================================
@@ -184,6 +185,8 @@ model CompanyInfo {
   label      String
   value      String
   orderIndex Int    @default(0)
+
+  @@index([orderIndex])
 }
 
 model Facility {
@@ -195,6 +198,8 @@ model Facility {
   phone      String
   imageUrl   String?
   orderIndex Int     @default(0)
+
+  @@index([orderIndex])
 }
 
 model SystemSetting {
@@ -209,6 +214,8 @@ model CompanySlogan {
   icon        String // Tên định danh Icon (Lucide/FontAwesome)
   description String? @db.Text
   orderIndex  Int     @default(0)
+
+  @@index([orderIndex])
 }
 
 model CompanyTimeline {
@@ -217,6 +224,8 @@ model CompanyTimeline {
   title       String
   description String @db.Text
   orderIndex  Int    @default(0)
+
+  @@index([orderIndex])
 }
 
 model Banner {
