@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PageOptionsDto } from '../../../common/dto/pagination.dto';
 import { IsOptional, IsString, IsEnum } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { LeadPriority } from '@prisma/client';
 
 export class GetLeadsFilterDto extends PageOptionsDto {
@@ -16,6 +17,7 @@ export class GetLeadsFilterDto extends PageOptionsDto {
 
   @ApiPropertyOptional({ description: 'Lọc theo mức độ ưu tiên (HIGH, MEDIUM, LOW)', enum: LeadPriority })
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsEnum(LeadPriority)
   priority?: LeadPriority;
 
