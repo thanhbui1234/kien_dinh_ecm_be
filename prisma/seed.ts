@@ -134,15 +134,15 @@ async function main() {
     },
   });
 
-  // --- SEED PROJECT ---
   await prisma.project.upsert({
     where: { slug: 'du-an-nha-may-vinfast' },
-    update: {},
+    update: { isFeatured: true },
     create: {
       name: 'Dự án Cung cấp CNC Nhà Máy Vinfast',
       slug: 'du-an-nha-may-vinfast',
       description: 'Cung cấp hệ thống 10 máy tiện CNC cao cấp cho dây chuyền sản xuất xe điện.',
       coverImage: 'https://placehold.co/800x400/purple/white?text=Project+Vinfast',
+      isFeatured: true,
       detail: {
         create: {
           contentDetail: '<p>Chi tiết quá trình bàn giao và lắp đặt máy Mazak tại nhà máy Hải Phòng. Đội ngũ kỹ sư Mazak đã làm việc liên tục để đảm bảo tiến độ bàn giao trong vòng 3 tháng.</p>',
@@ -165,7 +165,7 @@ async function main() {
 
   await prisma.project.upsert({
     where: { slug: 'du-an-nha-may-samsung-thai-nguyen' },
-    update: {},
+    update: { isFeatured: false },
     create: {
       name: 'Dự án Samsung Thái Nguyên (SEVT)',
       slug: 'du-an-nha-may-samsung-thai-nguyen',

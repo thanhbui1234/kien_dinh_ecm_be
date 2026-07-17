@@ -96,6 +96,7 @@ model Project {
   slug        String            @unique
   description String            @db.VarChar(500)
   coverImage  String
+  isFeatured  Boolean           @default(false)
   status      Boolean           @default(true)
   detail      ProjectDetail?
   products    ProjectProduct[]
@@ -103,6 +104,7 @@ model Project {
   createdAt   DateTime          @default(now())
 
   @@index([status, createdAt(sort: Desc)])
+  @@index([isFeatured, status])
 }
 
 model ProjectDetail {

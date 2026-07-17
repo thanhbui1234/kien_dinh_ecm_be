@@ -5,6 +5,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { AppMessages } from '../../common/constants/messages.constant';
 import { ErrorCode } from '../../common/constants/error-codes.constant';
+import { generateSlug } from '../../common/utils/string.util';
 
 @Injectable()
 export class CategoriesService {
@@ -13,23 +14,32 @@ export class CategoriesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-  ) {}
+  ) { }
 
   async create(createCategoryDto: CreateCategoryDto) {
     const { parentId, ...categoryData } = createCategoryDto;
 
-    const existingCategory = await this.prisma.category.findUnique({
-      where: { slug: categoryData.slug },
+    let generatedSlug = categoryData.slug?.trim() ? categoryData.slug.trim() : generateSlug(categoryData.name);
+    let existingCategory = await this.prisma.category.findUnique({
+      where: { slug: generatedSlug },
     });
 
-    if (existingCategory) {
-      throw new ConflictException({
-        message: AppMessages.CATEGORY.SLUG_EXISTS,
-        errorCode: 'CATEGORY_SLUG_EXISTS',
+    let counter = 1;
+    while (existingCategory) {
+      if (categoryData.slug?.trim()) {
+        throw new ConflictException({
+          message: AppMessages.CATEGORY.SLUG_EXISTS,
+          errorCode: 'CATEGORY_SLUG_EXISTS',
+        });
+      }
+      generatedSlug = `${generateSlug(categoryData.name)}-${counter}`;
+      existingCategory = await this.prisma.category.findUnique({
+        where: { slug: generatedSlug },
       });
+      counter++;
     }
 
-    const data: any = { ...categoryData };
+    const data: any = { ...categoryData, slug: generatedSlug };
 
     if (parentId && parentId.trim() !== '') {
       const parent = await this.prisma.category.findUnique({
@@ -58,7 +68,7 @@ export class CategoriesService {
         this.logger.log('[Redis] Cache Hit: categories:flat');
         return cachedFlat;
       }
-    } catch (error) {}
+    } catch (error) { }
 
     this.logger.log('[Redis] Cache Miss: categories:flat');
 
@@ -68,7 +78,7 @@ export class CategoriesService {
 
     try {
       await this.redis.client.set('categories:flat', flatCategories, { ex: 86400 });
-    } catch (error) {}
+    } catch (error) { }
 
     return flatCategories;
   }
@@ -93,13 +103,17 @@ export class CategoriesService {
 
   async update(id: string, updateCategoryDto: UpdateCategoryDto) {
     const { parentId, ...categoryData } = updateCategoryDto;
-    
+
     const category = await this.prisma.category.findUnique({ where: { id } });
     if (!category) {
       throw new NotFoundException({
         message: AppMessages.CATEGORY.NOT_FOUND,
         errorCode: 'CATEGORY_NOT_FOUND',
       });
+    }
+
+    if (categoryData.slug === '') {
+      delete categoryData.slug;
     }
 
     if (categoryData.slug && categoryData.slug !== category.slug) {
@@ -150,6 +164,7 @@ export class CategoriesService {
   }
 
   async remove(id: string) {
+    console.log('id_category', id)
     const category = await this.prisma.category.findUnique({
       where: { id },
       include: {
@@ -182,7 +197,7 @@ export class CategoriesService {
 
     await this.prisma.category.delete({ where: { id } });
     await this.redis.client.del('categories:flat');
-    
+
     return { message: AppMessages.CATEGORY.DELETE_SUCCESS };
   }
 }

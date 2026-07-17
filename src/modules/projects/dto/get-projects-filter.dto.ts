@@ -14,4 +14,14 @@ export class GetProjectsFilterDto extends PageOptionsDto {
   @IsBoolean()
   @Transform(({ value }) => value === 'true' || value === true)
   status?: boolean;
+
+  @ApiPropertyOptional({ description: 'Lọc dự án nổi bật (true/false)' })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  isFeatured?: boolean;
 }

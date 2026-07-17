@@ -24,6 +24,9 @@ export class ProjectResponseDto {
   @ApiProperty({ description: 'Trạng thái hiển thị' })
   status: boolean;
 
+  @ApiProperty({ description: 'Dự án nổi bật' })
+  isFeatured: boolean;
+
   @ApiProperty({ description: 'Ngày tạo' })
   createdAt: Date;
 

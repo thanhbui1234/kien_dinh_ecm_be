@@ -7,10 +7,10 @@ export class CreateCategoryDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ description: 'Slug định danh trên URL (duy nhất)' })
+  @ApiPropertyOptional({ description: 'Slug định danh trên URL. Nếu để trống, BE sẽ tự tạo từ tên' })
   @IsString()
-  @IsNotEmpty()
-  slug: string;
+  @IsOptional()
+  slug?: string;
 
   @ApiPropertyOptional({ description: 'Đường dẫn ảnh đại diện của danh mục' })
   @IsString()

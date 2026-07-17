@@ -36,8 +36,8 @@ export const CACHE_KEYS = {
   // --- PROJECTS ---
   PROJECTS: {
     RECENT_PREFIX: 'projects:recent:*',
-    GET_RECENT: (skip: number, limit: number, status?: boolean) =>
-      `projects:recent:${skip}:${limit}:${status ?? 'all'}`,
+    GET_RECENT: (skip: number, limit: number, status?: boolean, isFeatured?: boolean) =>
+      `projects:recent:${skip}:${limit}:${status ?? 'all'}:${isFeatured ?? 'all'}`,
     DETAIL: (id: string) => `project:detail:${id}`,
   },
 

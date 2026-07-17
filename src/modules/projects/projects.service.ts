@@ -86,7 +86,7 @@ export class ProjectsService {
   }
 
   async findAll(filterDto: GetProjectsFilterDto) {
-    const { search, status } = filterDto;
+    const { search, status, isFeatured } = filterDto;
     const skip = filterDto.skip;
     const limit = filterDto.limit ?? 10;
 
@@ -97,11 +97,15 @@ export class ProjectsService {
     }
 
     if (status !== undefined) {
-      where.status = status;
+      where.status = status === 'true' as any ? true : (status === 'false' as any ? false : status);
+    }
+
+    if (isFeatured !== undefined) {
+      where.isFeatured = isFeatured === 'true' as any ? true : (isFeatured === 'false' as any ? false : isFeatured);
     }
 
     const isCacheable = !search;
-    const cacheKey = CACHE_KEYS.PROJECTS.GET_RECENT(skip, limit, status);
+    const cacheKey = CACHE_KEYS.PROJECTS.GET_RECENT(skip, limit, status, isFeatured);
 
     if (isCacheable) {
       try {

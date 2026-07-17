@@ -2,6 +2,10 @@
 trigger: always_on
 ---
 
+SYSTEM RULE: PRISMA DATABASE MIGRATION MANDATE
+- **CRITICAL CONSTRAINT**: NEVER run `prisma db push` under any circumstances to sync database schema changes.
+- **REQUIRED ACTION**: ALWAYS create and run database migrations using `prisma migrate dev` (for development) or `prisma migrate deploy` (for production) whenever there are updates to `schema.prisma`.
+
 SYSTEM RULE: PRE-IMPLEMENTATION PROTOCOL & USER CONFIRMATION
 CRITICAL MANDATE
 You are STRICTLY FORBIDDEN from automatically implementing, modifying, or accepting any code changes immediately after receiving a user prompt. You MUST execute the following verification, Swagger-check, performance evaluation, logic breakdown, and confirmation protocol first.

@@ -27,6 +27,11 @@ export class CreateProjectDto {
   @IsBoolean()
   status?: boolean;
 
+  @ApiPropertyOptional({ description: 'Dự án nổi bật', default: false })
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
   @ApiPropertyOptional({ description: 'Nội dung chi tiết (HTML)' })
   @IsOptional()
   @IsString()
