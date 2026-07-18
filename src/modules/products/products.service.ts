@@ -1,4 +1,5 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -10,8 +11,13 @@ import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
 import { generateSlug } from '../../common/utils/string.util';
 
+const REDIS_KEY_PRODUCT_VIEWS = 'product:views';
+const REDIS_KEY_PRODUCT_VIEWS_PROCESSING = 'product:views:processing';
+
 @Injectable()
 export class ProductsService {
+  private readonly logger = new Logger(ProductsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
@@ -483,7 +489,7 @@ export class ProductsService {
     return { message: AppMessages.PRODUCT.DELETE_SUCCESS };
   }
 
-  async incrementViewCount(id: string) {
+  async incrementViewCount(id: string, ip: string) {
     const product = await this.prisma.product.findUnique({ where: { id } });
     if (!product) {
       throw new NotFoundException({
@@ -492,11 +498,94 @@ export class ProductsService {
       });
     }
 
-    await this.prisma.product.update({
-      where: { id },
-      data: { viewCount: { increment: 1 } },
-    });
+    // 1. Kiểm tra IP trong Redis xem đã view trong 12 tiếng qua chưa (Chống spam)
+    const clientIp = ip || 'unknown';
+    const ipKey = `product:view:${id}:ip:${clientIp}`;
+    
+    // Lưu key với thời gian sống 12 tiếng (43200s), nx: true nghĩa là chỉ set nếu chưa tồn tại
+    const isNewView = await this.redis.client.set(ipKey, '1', { ex: 43200, nx: true });
+
+    if (!isNewView) {
+      this.logger.log(`IP ${clientIp} already viewed product ${id} recently. Ignored.`);
+      return { success: true };
+    }
+
+    // 2. Chỉ ghi Delta vào Redis Sorted Set (KHÔNG ghi DB trực tiếp)
+    try {
+      await this.redis.client.zincrby(REDIS_KEY_PRODUCT_VIEWS, 1, id);
+      this.logger.log(`Incremented view delta for product ${id} in Redis`);
+    } catch (error) {
+      this.logger.error(`Failed to increment view delta for product ${id} in Redis`, error);
+    }
     
     return { success: true };
+  }
+
+  /**
+   * Cron Job: Đồng bộ lượt xem từ Redis vào Database (Delta Sync Pattern)
+   * Chạy mỗi 15 phút.
+   *
+   * Flow:
+   * 1. RENAME key "product:views" -> "product:views:processing" (Atomic, chống race condition)
+   * 2. Đọc toàn bộ delta từ key processing
+   * 3. Batch update vào DB: viewCount = viewCount + delta
+   * 4. Xóa key processing sau khi đồng bộ xong
+   */
+  @Cron('*/15 * * * *')
+  async syncViewCountsToDb() {
+    this.logger.log('[CronJob] Starting Delta Sync: product view counts...');
+
+    try {
+      // Bước 1: Atomic RENAME để tách key đang nhận request mới ra khỏi key đang xử lý
+      // Nếu key product:views chưa tồn tại (chưa có ai view), RENAME sẽ lỗi -> bắt lỗi và return
+      try {
+        await this.redis.client.rename(REDIS_KEY_PRODUCT_VIEWS, REDIS_KEY_PRODUCT_VIEWS_PROCESSING);
+      } catch {
+        this.logger.log('[CronJob] No new view deltas to sync. Skipping.');
+        return;
+      }
+
+      // Bước 2: Đọc toàn bộ member + score từ key processing
+      const viewDeltas = await this.redis.client.zrange(REDIS_KEY_PRODUCT_VIEWS_PROCESSING, 0, -1, { withScores: true }) as (string | number)[];
+
+      if (!viewDeltas || viewDeltas.length === 0) {
+        await this.redis.client.del(REDIS_KEY_PRODUCT_VIEWS_PROCESSING);
+        this.logger.log('[CronJob] No view deltas found after RENAME. Cleaned up.');
+        return;
+      }
+
+      // Bước 3: Parse kết quả thành mảng { productId, delta }
+      // zrange WITHSCORES trả về mảng xen kẽ: [member1, score1, member2, score2, ...]
+      const updates: { productId: string; delta: number }[] = [];
+      for (let i = 0; i < viewDeltas.length; i += 2) {
+        const productId = String(viewDeltas[i]);
+        const delta = Number(viewDeltas[i + 1]);
+        if (delta > 0) {
+          updates.push({ productId, delta });
+        }
+      }
+
+      // Bước 4: Batch update vào DB bằng Prisma transaction
+      if (updates.length > 0) {
+        const prismaOps = updates.map((item) =>
+          this.prisma.product.update({
+            where: { id: item.productId },
+            data: { viewCount: { increment: item.delta } },
+          }),
+        );
+
+        await this.prisma.$transaction(prismaOps);
+        this.logger.log(`[CronJob] Synced view counts for ${updates.length} products to DB.`);
+      }
+
+      // Bước 5: Xóa key processing sau khi đồng bộ xong
+      await this.redis.client.del(REDIS_KEY_PRODUCT_VIEWS_PROCESSING);
+      this.logger.log('[CronJob] Delta Sync completed successfully.');
+    } catch (error) {
+      this.logger.error('[CronJob] Delta Sync failed:', error);
+      // Nếu lỗi xảy ra sau RENAME nhưng trước khi xóa processing key,
+      // lần chạy tiếp theo sẽ tạo key product:views mới (không mất data mới)
+      // và key processing cũ sẽ được xử lý lại nếu cần (hoặc xóa thủ công)
+    }
   }
 }

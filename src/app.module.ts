@@ -1,5 +1,6 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './database/prisma.module';
 import { RedisModule } from './database/redis.module';
@@ -34,6 +35,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
       isGlobal: true,
       validate: validateConfig,
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     RedisModule,
     UsersModule,
