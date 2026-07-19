@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ProductResponseDto } from '../../products/dto/product-response.dto';
 
 export class ProjectDetailResponseDto {
   @ApiProperty({ description: 'Nội dung HTML chi tiết' })
@@ -30,12 +31,18 @@ export class ProjectResponseDto {
   @ApiProperty({ description: 'Ngày tạo' })
   createdAt: Date;
 
-  @ApiPropertyOptional({ type: ProjectDetailResponseDto, description: 'Chi tiết bài viết' })
+  @ApiPropertyOptional({ type: ProjectDetailResponseDto, description: 'Chi tiết nội dung' })
   detail?: ProjectDetailResponseDto;
 
-  @ApiPropertyOptional({ type: [String], description: 'Danh sách ID sản phẩm' })
+  @ApiPropertyOptional({ type: [String], description: 'Danh sách URL ảnh gallery' })
+  images?: string[];
+
+  @ApiPropertyOptional({ type: [String], description: 'Danh sách ID sản phẩm (dùng cho admin)' })
   productIds?: string[];
 
   @ApiPropertyOptional({ type: [String], description: 'Danh sách ID danh mục' })
   categoryIds?: string[];
+
+  @ApiPropertyOptional({ type: [ProductResponseDto], description: 'Sản phẩm liên quan (dùng cho user FE)' })
+  relatedProducts?: ProductResponseDto[];
 }

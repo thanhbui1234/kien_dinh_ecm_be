@@ -44,13 +44,7 @@ export class SettingsService {
     const setting = await this.prisma.systemSetting.findUnique({
       where: { key },
     });
-    if (!setting) {
-      throw new NotFoundException({
-        message: 'Không tìm thấy cấu hình này',
-        errorCode: 'SETTING_NOT_FOUND',
-      });
-    }
-    return setting;
+    return setting ?? { key, value: '' };
   }
 
   async updateSetting(key: string, updateDto: UpdateSettingDto) {

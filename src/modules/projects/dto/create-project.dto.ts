@@ -48,4 +48,10 @@ export class CreateProjectDto {
   @IsArray()
   @IsString({ each: true })
   categoryIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Danh sách URL ảnh gallery dự án', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[];
 }

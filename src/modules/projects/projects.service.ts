@@ -1,10 +1,9 @@
-import { Injectable, ConflictException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { GetProjectsFilterDto } from './dto/get-projects-filter.dto';
-import { AppMessages } from '../../common/constants/messages.constant';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
@@ -18,7 +17,7 @@ export class ProjectsService {
   ) {}
 
   async create(createProjectDto: CreateProjectDto) {
-    const { contentDetail, productIds, categoryIds, ...projectData } = createProjectDto;
+    const { contentDetail, productIds, categoryIds, images, ...projectData } = createProjectDto;
 
     if (!projectData.slug && projectData.name) {
       projectData.slug = generateSlug(projectData.name);
@@ -44,10 +43,12 @@ export class ProjectsService {
       slug: projectData.slug as string,
     };
 
-    if (contentDetail) {
+    const hasDetail = !!contentDetail || (images && images.length > 0);
+    if (hasDetail) {
       createData.detail = {
         create: {
-          contentDetail,
+          contentDetail: contentDetail ?? '',
+          images: images ?? [],
         },
       };
     }
@@ -139,22 +140,38 @@ export class ProjectsService {
     return result;
   }
 
-  async findOne(id: string) {
-    const cacheKey = CACHE_KEYS.PROJECTS.DETAIL(id);
-    
+  async findOne(idOrSlug: string) {
+    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
+    const cacheKey = CACHE_KEYS.PROJECTS.DETAIL(idOrSlug);
+
     try {
       const cached = await this.redis.client.get(cacheKey);
-      if (cached) {
-        return cached;
-      }
+      if (cached) return cached;
     } catch (e) {}
 
     const project = await this.prisma.project.findUnique({
-      where: { id },
+      where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
       include: {
         detail: true,
-        products: { include: { product: true } },
-        categories: { include: { category: true } },
+        products: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                thumbnailUrl: true,
+                price: true,
+                isFeatured: true,
+                status: true,
+                categoryId: true,
+                viewCount: true,
+                createdAt: true,
+              },
+            },
+          },
+        },
+        categories: true,
       },
     });
 
@@ -165,24 +182,35 @@ export class ProjectsService {
       });
     }
 
-    // Flatten logic for output
     const formattedProject = {
-      ...project,
+      id: project.id,
+      name: project.name,
+      slug: project.slug,
+      description: project.description,
+      coverImage: project.coverImage,
+      status: project.status,
+      isFeatured: project.isFeatured,
+      createdAt: project.createdAt,
+      detail: project.detail ? { contentDetail: project.detail.contentDetail } : null,
+      images: project.detail?.images ?? [],
       productIds: project.products.map(p => p.productId),
       categoryIds: project.categories.map(c => c.categoryId),
+      relatedProducts: project.products.map(p => p.product),
     };
 
     try {
+      const otherKey = isUuid ? project.slug : project.id;
       await this.redis.client.set(cacheKey, formattedProject, { ex: CACHE_TTL.SEVEN_DAYS });
+      await this.redis.client.set(CACHE_KEYS.PROJECTS.DETAIL(otherKey), formattedProject, { ex: CACHE_TTL.SEVEN_DAYS });
     } catch (e) {}
 
     return formattedProject;
   }
 
   async update(id: string, updateProjectDto: UpdateProjectDto) {
-    await this.findOne(id); // Check existence
+    const existing = await this.findOne(id);
 
-    const { contentDetail, productIds, categoryIds, ...projectData } = updateProjectDto;
+    const { contentDetail, productIds, categoryIds, images, ...projectData } = updateProjectDto;
 
     if (projectData.slug) {
       const existingProject = await this.prisma.project.findFirst({
@@ -200,11 +228,17 @@ export class ProjectsService {
       ...projectData,
     };
 
-    if (contentDetail !== undefined) {
+    if (contentDetail !== undefined || images !== undefined) {
       updateData.detail = {
         upsert: {
-          create: { contentDetail },
-          update: { contentDetail },
+          create: {
+            contentDetail: contentDetail ?? '',
+            images: images ?? [],
+          },
+          update: {
+            ...(contentDetail !== undefined && { contentDetail }),
+            ...(images !== undefined && { images }),
+          },
         },
       };
     }
@@ -234,6 +268,10 @@ export class ProjectsService {
 
     try {
       await this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL(id));
+      await this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL((existing as any).slug));
+      if (result.slug !== (existing as any).slug) {
+        await this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL(result.slug));
+      }
       const keys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.RECENT_PREFIX);
       if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) {}
@@ -242,13 +280,14 @@ export class ProjectsService {
   }
 
   async remove(id: string) {
-    await this.findOne(id);
+    const existing = await this.findOne(id);
     const result = await this.prisma.project.delete({
       where: { id },
     });
 
     try {
       await this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL(id));
+      await this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL((existing as any).slug));
       const keys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.RECENT_PREFIX);
       if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) {}

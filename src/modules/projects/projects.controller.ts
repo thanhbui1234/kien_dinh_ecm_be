@@ -30,12 +30,12 @@ export class ProjectsController {
     return this.projectsService.findAll(filterDto);
   }
 
-  @ApiOperation({ summary: 'Lấy chi tiết dự án' })
+  @ApiOperation({ summary: 'Lấy chi tiết dự án theo ID hoặc slug' })
   @ApiSuccessResponse({ model: ProjectResponseDto, description: 'Lấy chi tiết dự án thành công' })
   @Public()
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.projectsService.findOne(id);
+  @Get(':idOrSlug')
+  findOne(@Param('idOrSlug') idOrSlug: string) {
+    return this.projectsService.findOne(idOrSlug);
   }
 
   @ApiOperation({ summary: 'Cập nhật dự án' })
