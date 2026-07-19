@@ -16,6 +16,9 @@ import {
   CreateFacilityDto,
   UpdateFacilityDto,
   FacilityResponseDto,
+  CreateCompanyHistoryEventDto,
+  UpdateCompanyHistoryEventDto,
+  CompanyHistoryEventResponseDto,
 } from './dto/about.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import {
@@ -126,5 +129,53 @@ export class AboutController {
   @Delete('facilities/:id')
   deleteFacility(@Param('id') id: string) {
     return this.aboutService.deleteFacility(id);
+  }
+
+  // ─── Company History Events ──────────────────────────────────────────────────
+
+  @ApiOperation({ summary: 'Lấy danh sách sự kiện lịch sử công ty' })
+  @ApiSuccessResponse({
+    model: CompanyHistoryEventResponseDto,
+    isArray: true,
+    description: 'Lấy thành công',
+  })
+  @Public()
+  @Get('history-events')
+  getHistoryEvents() {
+    return this.aboutService.getHistoryEvents();
+  }
+
+  @ApiOperation({ summary: 'Thêm sự kiện lịch sử' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({
+    model: CompanyHistoryEventResponseDto,
+    status: 201,
+    description: 'Thêm thành công',
+  })
+  @Post('history-events')
+  createHistoryEvent(@Body() dto: CreateCompanyHistoryEventDto) {
+    return this.aboutService.createHistoryEvent(dto);
+  }
+
+  @ApiOperation({ summary: 'Cập nhật sự kiện lịch sử' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({
+    model: CompanyHistoryEventResponseDto,
+    description: 'Cập nhật thành công',
+  })
+  @Patch('history-events/:id')
+  updateHistoryEvent(@Param('id') id: string, @Body() dto: UpdateCompanyHistoryEventDto) {
+    return this.aboutService.updateHistoryEvent(id, dto);
+  }
+
+  @ApiOperation({ summary: 'Xóa sự kiện lịch sử' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({
+    model: CompanyHistoryEventResponseDto,
+    description: 'Xóa thành công',
+  })
+  @Delete('history-events/:id')
+  deleteHistoryEvent(@Param('id') id: string) {
+    return this.aboutService.deleteHistoryEvent(id);
   }
 }

@@ -50,6 +50,17 @@ export class SettingsController {
     return this.settingsService.getSettings();
   }
 
+  @ApiOperation({ summary: 'Lấy một cấu hình hệ thống theo key' })
+  @ApiSuccessResponse({
+    model: SettingResponseDto,
+    description: 'Lấy cấu hình thành công. Nếu key chưa tồn tại trả về { key, value: "" }',
+  })
+  @Public()
+  @Get('system/:key')
+  getSettingByKey(@Param('key') key: string) {
+    return this.settingsService.getSettingByKey(key);
+  }
+
   @ApiOperation({ summary: 'Cập nhật cấu hình hệ thống' })
   @ApiBearerAuth('JWT-auth')
   @ApiSuccessResponse({

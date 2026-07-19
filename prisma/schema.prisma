@@ -1,35 +1,29 @@
-datasource db {
-  provider = "postgresql"
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
-// ==========================================
-// 1. PHÂN HỆ QUẢN TRỊ VIÊN (ADMIN AUTH)
-// ==========================================
+datasource db {
+  provider = "postgresql"
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
   password     String
   fullName     String
-  role         String   @default("EDITOR") // SUPER_ADMIN, EDITOR
-  refreshToken String? // Lưu trữ Token refresh (đã băm) để có thể thu hồi khi logout
+  role         String   @default("EDITOR")
   createdAt    DateTime @default(now())
+  refreshToken String?
 }
 
-// ==========================================
-// 2. PHÂN HỆ DANH MỤC ĐA CẤP (RECURSIVE CATEGORY)
-// ==========================================
 model Category {
   id              String            @id @default(uuid())
   name            String
   slug            String            @unique
-  imageUrl        String?
   orderIndex      Int               @default(0)
   status          Boolean           @default(true)
   parentId        String?
+  imageUrl        String?
   parent          Category?         @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: Restrict)
   subCategories   Category[]        @relation("CategoryToCategory")
   products        Product[]
@@ -39,28 +33,25 @@ model Category {
   @@index([orderIndex])
 }
 
-// ==========================================
-// 3. PHÂN HỆ SẢN PHẨM & CHI TIẾT (VERTICAL PARTITIONING + JSONB)
-// ==========================================
 model Product {
   id              String           @id @default(uuid())
   name            String
   slug            String           @unique
-  price           Float? // Nếu null hoặc bằng 0 -> Hiển thị "Liên hệ báo giá"
-  thumbnailUrl    String // Lưu ảnh đại diện trực tiếp để tăng tốc độ quét list ngoài Frontend
+  price           Float?
+  thumbnailUrl    String
   isFeatured      Boolean          @default(false)
   status          Boolean          @default(true)
   categoryId      String
-  category        Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdAt       DateTime         @default(now())
   parentId        String?
+  viewCount       Int              @default(0)
+  contactRequests ContactRequest[]
+  category        Category         @relation(fields: [categoryId], references: [id])
   parent          Product?         @relation("ProductVariants", fields: [parentId], references: [id], onDelete: Restrict)
   variants        Product[]        @relation("ProductVariants")
-  detail          ProductDetail? // Liên kết 1-1 sang bảng chứa hàng nặng kỹ thuật
+  detail          ProductDetail?
   images          ProductImage[]
-  contactRequests ContactRequest[]
   projectMappings ProjectProduct[]
-  viewCount       Int              @default(0)
-  createdAt       DateTime         @default(now())
 
   @@index([name])
   @@index([categoryId, status])
@@ -69,11 +60,11 @@ model Product {
 
 model ProductDetail {
   productId      String  @id
+  contentDetail  String
+  specifications Json
+  seoMeta        Json?
+  features       Json?
   product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  contentDetail  String  @db.Text // Nội dung mô tả chi tiết bằng bài viết HTML dài
-  specifications Json // Lưu cấu trúc thông số động dạng JSONB linh hoạt cho máy CNC
-  features       Json? // Lưu các chức năng nổi bật dạng JSON động
-  seoMeta        Json? // Chứa { title, description, keywords }
 }
 
 model ProductImage {
@@ -87,37 +78,35 @@ model ProductImage {
   @@index([productId])
 }
 
-// ==========================================
-// 4. PHÂN HỆ ĐỐI TÁC DỰ ÁN (MANY-TO-MANY MAPPING)
-// ==========================================
 model Project {
   id          String            @id @default(uuid())
   name        String
   slug        String            @unique
   description String            @db.VarChar(500)
   coverImage  String
-  isFeatured  Boolean           @default(false)
   status      Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  isFeatured  Boolean           @default(false)
+  categories  ProjectCategory[]
   detail      ProjectDetail?
   products    ProjectProduct[]
-  categories  ProjectCategory[]
-  createdAt   DateTime          @default(now())
 
   @@index([status, createdAt(sort: Desc)])
   @@index([isFeatured, status])
 }
 
 model ProjectDetail {
-  projectId     String  @id
-  project       Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  contentDetail String  @db.Text
+  projectId     String   @id
+  contentDetail String
+  images        String[] @default([])
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model ProjectProduct {
   projectId String
   productId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, productId])
 }
@@ -125,63 +114,49 @@ model ProjectProduct {
 model ProjectCategory {
   projectId  String
   categoryId String
-  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, categoryId])
 }
 
-// ==========================================
-// 5. PHÂN HỆ TIẾP NHẬN LEAD KHÁCH HÀNG (LEAD GENERATION)
-// ==========================================
-enum LeadPriority {
-  HIGH
-  MEDIUM
-  LOW
-}
 model ContactRequest {
-  id              String   @id @default(uuid())
+  id              String       @id @default(uuid())
   fullName        String
   phoneNumber     String
   email           String?
-  message         String   @db.Text
-  status          String       @default("PENDING") // PENDING, CONTACTED, SPAM
-  priority        LeadPriority @default(MEDIUM)
-  adminNote       String?  @db.Text
+  message         String
+  status          String       @default("PENDING")
+  adminNote       String?
   targetProductId String?
-  product         Product? @relation(fields: [targetProductId], references: [id], onDelete: SetNull)
-  createdAt       DateTime @default(now())
+  createdAt       DateTime     @default(now())
+  priority        LeadPriority @default(MEDIUM)
+  product         Product?     @relation(fields: [targetProductId], references: [id])
 
   @@index([status, createdAt(sort: Desc)])
 }
 
-// ==========================================
-// 6. PHÂN HỆ TUYỂN DỤNG CÔNG NGHIỆP (RECRUITMENT 1-1 SPLIT)
-// ==========================================
 model JobPost {
   id        String         @id @default(uuid())
   title     String
   slug      String         @unique
   salary    String         @default("Cạnh tranh")
   status    Boolean        @default(true)
-  detail    JobPostDetail?
   createdAt DateTime       @default(now())
+  detail    JobPostDetail?
 
   @@index([status, createdAt(sort: Desc)])
 }
 
 model JobPostDetail {
-  id        String   @id @default(cuid())
   jobId     String   @unique
-  job       JobPost  @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  sections  Json // Mảng các mục. VD: [{ "title": "Requirement", "contents": ["...", "..."] }]
   createdAt DateTime @default(now())
+  id        String   @id @default(cuid())
+  sections  Json
   updatedAt DateTime @updatedAt
+  job       JobPost  @relation(fields: [jobId], references: [id], onDelete: Cascade)
 }
 
-// ==========================================
-// 7. CẤU HÌNH HỆ THỐNG & TRANG ABOUT US DYNAMIC
-// ==========================================
 model CompanyInfo {
   id         String @id @default(uuid())
   label      String
@@ -206,25 +181,25 @@ model Facility {
 
 model SystemSetting {
   id    String @id @default(uuid())
-  key   String @unique // hotline, zalo_url, hr_email
-  value String @db.Text
+  key   String @unique
+  value String
 }
 
 model CompanySlogan {
   id          String  @id @default(uuid())
   title       String
-  icon        String // Tên định danh Icon (Lucide/FontAwesome)
-  description String? @db.Text
+  icon        String
   orderIndex  Int     @default(0)
+  description String?
 
   @@index([orderIndex])
 }
 
 model CompanyTimeline {
   id          String @id @default(uuid())
-  year        String // 2005, 2010, 2015
+  year        String
   title       String
-  description String @db.Text
+  description String
   orderIndex  Int    @default(0)
 
   @@index([orderIndex])
@@ -232,13 +207,37 @@ model CompanyTimeline {
 
 model Banner {
   id          String   @id @default(uuid())
-  title       String?
-  description String?
-  link        String?
   imageUrl    String
   orderIndex  Int      @default(0)
   status      Boolean  @default(true)
   createdAt   DateTime @default(now())
+  description String?
+  link        String?
+  title       String?
 
   @@index([status, orderIndex])
+}
+
+model CompanyProfile {
+  id        String @id @default("singleton")
+  introHtml String @default("")
+}
+
+model CompanyHistoryEvent {
+  id         String   @id @default(uuid())
+  period     String
+  year       String
+  text       String
+  imageUrl   String?
+  orderIndex Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([period, orderIndex])
+}
+
+enum LeadPriority {
+  HIGH
+  MEDIUM
+  LOW
 }

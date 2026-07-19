@@ -72,3 +72,39 @@ export class FacilityResponseDto extends CreateFacilityDto {
   @ApiProperty({ description: 'ID' })
   id: string;
 }
+
+// ─── Company History Event ────────────────────────────────────────────────────
+
+export class CreateCompanyHistoryEventDto {
+  @ApiProperty({ description: 'Giai đoạn', example: '1919 - 1950' })
+  @IsString()
+  @IsNotEmpty()
+  period: string;
+
+  @ApiProperty({ description: 'Năm', example: '1919' })
+  @IsString()
+  @IsNotEmpty()
+  year: string;
+
+  @ApiProperty({ description: 'Nội dung sự kiện', example: 'Thành lập công ty tại Nagoya.' })
+  @IsString()
+  @IsNotEmpty()
+  text: string;
+
+  @ApiProperty({ description: 'URL hình ảnh', required: false })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @ApiProperty({ description: 'Thứ tự hiển thị', required: false, default: 0 })
+  @IsOptional()
+  @IsNumber()
+  orderIndex?: number;
+}
+
+export class UpdateCompanyHistoryEventDto extends PartialType(CreateCompanyHistoryEventDto) {}
+
+export class CompanyHistoryEventResponseDto extends CreateCompanyHistoryEventDto {
+  @ApiProperty({ description: 'ID' })
+  id: string;
+}

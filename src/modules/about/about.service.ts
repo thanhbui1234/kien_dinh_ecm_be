@@ -7,6 +7,8 @@ import {
   UpdateCompanyInfoDto,
   CreateFacilityDto,
   UpdateFacilityDto,
+  CreateCompanyHistoryEventDto,
+  UpdateCompanyHistoryEventDto,
 } from './dto/about.dto';
 
 @Injectable()
@@ -148,6 +150,69 @@ export class AboutService {
     const result = await this.prisma.facility.delete({ where: { id } });
     try {
       await this.redis.client.del(CACHE_KEYS.ABOUT.FACILITIES);
+    } catch (e) {}
+    return result;
+  }
+
+  // ─── Company History Events ──────────────────────────────────────────────────
+
+  async getHistoryEvents() {
+    try {
+      const cached = await this.redis.client.get(CACHE_KEYS.ABOUT.HISTORY_EVENTS);
+      if (cached) return cached;
+    } catch (e) {}
+
+    const items = await this.prisma.companyHistoryEvent.findMany({
+      orderBy: [{ period: 'asc' }, { orderIndex: 'asc' }],
+    });
+
+    try {
+      await this.redis.client.set(CACHE_KEYS.ABOUT.HISTORY_EVENTS, items);
+    } catch (e) {}
+
+    return items;
+  }
+
+  async createHistoryEvent(dto: CreateCompanyHistoryEventDto) {
+    if (dto.orderIndex === undefined) {
+      const max = await this.prisma.companyHistoryEvent.aggregate({
+        _max: { orderIndex: true },
+      });
+      dto.orderIndex = (max._max.orderIndex ?? 0) + 1;
+    }
+    const result = await this.prisma.companyHistoryEvent.create({ data: dto });
+    try {
+      await this.redis.client.del(CACHE_KEYS.ABOUT.HISTORY_EVENTS);
+    } catch (e) {}
+    return result;
+  }
+
+  async updateHistoryEvent(id: string, dto: UpdateCompanyHistoryEventDto) {
+    const existing = await this.prisma.companyHistoryEvent.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException({
+        message: 'Không tìm thấy sự kiện lịch sử',
+        errorCode: 'HISTORY_EVENT_NOT_FOUND',
+      });
+    }
+    const result = await this.prisma.companyHistoryEvent.update({ where: { id }, data: dto });
+    try {
+      await this.redis.client.del(CACHE_KEYS.ABOUT.HISTORY_EVENTS);
+    } catch (e) {}
+    return result;
+  }
+
+  async deleteHistoryEvent(id: string) {
+    const existing = await this.prisma.companyHistoryEvent.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException({
+        message: 'Không tìm thấy sự kiện lịch sử',
+        errorCode: 'HISTORY_EVENT_NOT_FOUND',
+      });
+    }
+    const result = await this.prisma.companyHistoryEvent.delete({ where: { id } });
+    try {
+      await this.redis.client.del(CACHE_KEYS.ABOUT.HISTORY_EVENTS);
     } catch (e) {}
     return result;
   }
