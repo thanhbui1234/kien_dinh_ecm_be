@@ -8,6 +8,7 @@ export const CACHE_TTL = {
 export const CACHE_KEYS = {
   // --- ABOUT ---
   ABOUT: {
+    COMPANY_PROFILE: 'about:company_profile',
     COMPANY_INFO: 'about:company_info',
     FACILITIES: 'about:facilities',
     HISTORY_EVENTS: 'about:history_events',

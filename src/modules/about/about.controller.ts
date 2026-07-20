@@ -10,6 +10,8 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AboutService } from './about.service';
 import {
+  UpdateCompanyProfileDto,
+  CompanyProfileResponseDto,
   CreateCompanyInfoDto,
   UpdateCompanyInfoDto,
   CompanyInfoResponseDto,
@@ -31,6 +33,24 @@ import {
 @Controller('about')
 export class AboutController {
   constructor(private readonly aboutService: AboutService) {}
+
+  // ─── Company Profile ────────────────────────────────────────────────────────
+
+  @ApiOperation({ summary: 'Lấy thông tin profile trang About' })
+  @ApiSuccessResponse({ model: CompanyProfileResponseDto, description: 'Lấy thành công' })
+  @Public()
+  @Get('profile')
+  getCompanyProfile() {
+    return this.aboutService.getCompanyProfile();
+  }
+
+  @ApiOperation({ summary: 'Cập nhật profile trang About (introHtml, thumbnailUrl)' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ model: CompanyProfileResponseDto, description: 'Cập nhật thành công' })
+  @Patch('profile')
+  updateCompanyProfile(@Body() dto: UpdateCompanyProfileDto) {
+    return this.aboutService.updateCompanyProfile(dto);
+  }
 
   // ─── Company Info ───────────────────────────────────────────────────────────
 
