@@ -1,6 +1,31 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
 
+// ─── Company Profile ──────────────────────────────────────────────────────────
+
+export class UpdateCompanyProfileDto {
+  @ApiProperty({ description: 'Nội dung HTML giới thiệu công ty', required: false })
+  @IsOptional()
+  @IsString()
+  introHtml?: string;
+
+  @ApiProperty({ description: 'URL ảnh thumbnail trang About', required: false })
+  @IsOptional()
+  @IsString()
+  thumbnailUrl?: string;
+}
+
+export class CompanyProfileResponseDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  introHtml: string;
+
+  @ApiProperty({ required: false })
+  thumbnailUrl?: string;
+}
+
 // ─── Company Info ─────────────────────────────────────────────────────────────
 
 export class CreateCompanyInfoDto {
@@ -13,6 +38,11 @@ export class CreateCompanyInfoDto {
   @IsString()
   @IsNotEmpty()
   value: string;
+
+  @ApiProperty({ description: 'URL ảnh minh họa', required: false })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
 
   @ApiProperty({ description: 'Thứ tự hiển thị', required: false, default: 0 })
   @IsOptional()

@@ -158,10 +158,11 @@ model JobPostDetail {
 }
 
 model CompanyInfo {
-  id         String @id @default(uuid())
+  id         String  @id @default(uuid())
   label      String
   value      String
-  orderIndex Int    @default(0)
+  imageUrl   String?
+  orderIndex Int     @default(0)
 
   @@index([orderIndex])
 }
@@ -196,11 +197,12 @@ model CompanySlogan {
 }
 
 model CompanyTimeline {
-  id          String @id @default(uuid())
+  id          String  @id @default(uuid())
   year        String
   title       String
   description String
-  orderIndex  Int    @default(0)
+  imageUrl    String?
+  orderIndex  Int     @default(0)
 
   @@index([orderIndex])
 }
@@ -219,8 +221,9 @@ model Banner {
 }
 
 model CompanyProfile {
-  id        String @id @default("singleton")
-  introHtml String @default("")
+  id           String  @id @default("singleton")
+  introHtml    String  @default("")
+  thumbnailUrl String?
 }
 
 model CompanyHistoryEvent {

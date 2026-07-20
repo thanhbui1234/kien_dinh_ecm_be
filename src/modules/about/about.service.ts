@@ -3,6 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis.service';
 import { CACHE_KEYS } from '../../common/constants/cache.constant';
 import {
+  UpdateCompanyProfileDto,
   CreateCompanyInfoDto,
   UpdateCompanyInfoDto,
   CreateFacilityDto,
@@ -17,6 +18,39 @@ export class AboutService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
   ) {}
+
+  // ─── Company Profile ────────────────────────────────────────────────────────
+
+  async getCompanyProfile() {
+    try {
+      const cached = await this.redis.client.get(CACHE_KEYS.ABOUT.COMPANY_PROFILE);
+      if (cached) return cached;
+    } catch (e) {}
+
+    const profile = await this.prisma.companyProfile.upsert({
+      where: { id: 'singleton' },
+      update: {},
+      create: { id: 'singleton', introHtml: '' },
+    });
+
+    try {
+      await this.redis.client.set(CACHE_KEYS.ABOUT.COMPANY_PROFILE, profile);
+    } catch (e) {}
+
+    return profile;
+  }
+
+  async updateCompanyProfile(dto: UpdateCompanyProfileDto) {
+    const result = await this.prisma.companyProfile.upsert({
+      where: { id: 'singleton' },
+      update: dto,
+      create: { id: 'singleton', introHtml: dto.introHtml ?? '', thumbnailUrl: dto.thumbnailUrl },
+    });
+    try {
+      await this.redis.client.del(CACHE_KEYS.ABOUT.COMPANY_PROFILE);
+    } catch (e) {}
+    return result;
+  }
 
   // ─── Company Info ───────────────────────────────────────────────────────────
 

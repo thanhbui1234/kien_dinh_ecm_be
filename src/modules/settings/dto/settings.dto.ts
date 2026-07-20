@@ -55,6 +55,11 @@ export class TimelineDto {
   @IsNotEmpty()
   description: string;
 
+  @ApiProperty({ description: 'URL ảnh minh họa cột mốc', required: false })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
   @ApiProperty({ description: 'Thứ tự hiển thị', default: 0, required: false })
   @IsOptional()
   @IsNumber()
