@@ -116,12 +116,16 @@ export class JobsService {
 
   async findOne(idOrSlug: string) {
     const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
+    const cacheKey = CACHE_KEYS.JOBS.DETAIL(idOrSlug);
+
+    try {
+      const cached = await this.redis.client.get(cacheKey);
+      if (cached) return cached;
+    } catch (e) {}
 
     const job = await this.prisma.jobPost.findFirst({
       where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
-      include: {
-        detail: true,
-      },
+      include: { detail: true },
     });
 
     if (!job) {
@@ -130,6 +134,14 @@ export class JobsService {
         errorCode: 'JOB_NOT_FOUND',
       });
     }
+
+    try {
+      const otherKey = isUuid ? job.slug : job.id;
+      await Promise.all([
+        this.redis.client.set(cacheKey, job, { ex: CACHE_TTL.TWENTY_FOUR_HOURS }),
+        this.redis.client.set(CACHE_KEYS.JOBS.DETAIL(otherKey), job, { ex: CACHE_TTL.TWENTY_FOUR_HOURS }),
+      ]);
+    } catch (e) {}
 
     return job;
   }
@@ -180,11 +192,17 @@ export class JobsService {
       include: { detail: true },
     });
 
-    try { 
-      const keys = await this.redis.client.keys(CACHE_KEYS.JOBS.ACTIVE_LIST_PREFIX);
-      if (keys.length > 0) {
-        await this.redis.client.del(...keys);
-      }
+    try {
+      const delKeys = [
+        CACHE_KEYS.JOBS.DETAIL(id),
+        CACHE_KEYS.JOBS.DETAIL(existing.slug),
+        ...(result.slug !== existing.slug ? [CACHE_KEYS.JOBS.DETAIL(result.slug)] : []),
+      ];
+      const listKeys = await this.redis.client.keys(CACHE_KEYS.JOBS.ACTIVE_LIST_PREFIX);
+      await Promise.all([
+        this.redis.client.del(...delKeys),
+        ...(listKeys.length > 0 ? [this.redis.client.del(...listKeys)] : []),
+      ]);
     } catch (e) {}
     return result;
   }
@@ -201,13 +219,14 @@ export class JobsService {
       where: { id },
     });
     
-    try { 
-      const keys = await this.redis.client.keys(CACHE_KEYS.JOBS.ACTIVE_LIST_PREFIX);
-      if (keys.length > 0) {
-        await this.redis.client.del(...keys);
-      }
+    try {
+      const listKeys = await this.redis.client.keys(CACHE_KEYS.JOBS.ACTIVE_LIST_PREFIX);
+      await Promise.all([
+        this.redis.client.del(CACHE_KEYS.JOBS.DETAIL(id), CACHE_KEYS.JOBS.DETAIL(existing.slug)),
+        ...(listKeys.length > 0 ? [this.redis.client.del(...listKeys)] : []),
+      ]);
     } catch (e) {}
-    
+
     return result;
   }
 }

@@ -17,7 +17,7 @@ export class LeadsService {
   }
 
   async findAll(filterDto: GetLeadsFilterDto) {
-    const { search, status, priority, targetProductId, startDate, endDate, sortBy } = filterDto;
+    const { search, status, priority, targetProductId, targetJobId, startDate, endDate, sortBy } = filterDto;
     const skip = filterDto.skip;
     const limit = filterDto.limit ?? 10;
 
@@ -41,6 +41,10 @@ export class LeadsService {
 
     if (targetProductId) {
       where.targetProductId = targetProductId;
+    }
+
+    if (targetJobId) {
+      where.targetJobId = targetJobId;
     }
 
     if (startDate || endDate) {
@@ -69,7 +73,10 @@ export class LeadsService {
         skip,
         take: limit,
         orderBy,
-        include: { product: { select: { id: true, name: true } } },
+        include: {
+          product: { select: { id: true, name: true } },
+          job: { select: { id: true, title: true } },
+        },
       }),
       this.prisma.contactRequest.count({ where }),
     ]);

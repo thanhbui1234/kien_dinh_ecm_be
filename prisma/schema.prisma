@@ -129,21 +129,24 @@ model ContactRequest {
   status          String       @default("PENDING")
   adminNote       String?
   targetProductId String?
+  targetJobId     String?
   createdAt       DateTime     @default(now())
   priority        LeadPriority @default(MEDIUM)
   product         Product?     @relation(fields: [targetProductId], references: [id])
+  job             JobPost?     @relation(fields: [targetJobId], references: [id])
 
   @@index([status, createdAt(sort: Desc)])
 }
 
 model JobPost {
-  id        String         @id @default(uuid())
-  title     String
-  slug      String         @unique
-  salary    String         @default("Cạnh tranh")
-  status    Boolean        @default(true)
-  createdAt DateTime       @default(now())
-  detail    JobPostDetail?
+  id              String           @id @default(uuid())
+  title           String
+  slug            String           @unique
+  salary          String           @default("Cạnh tranh")
+  status          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  detail          JobPostDetail?
+  contactRequests ContactRequest[]
 
   @@index([status, createdAt(sort: Desc)])
 }

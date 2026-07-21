@@ -1,6 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProductResponseDto } from '../../products/dto/product-response.dto';
 
+export class LeadJobDto {
+  @ApiProperty() id: string;
+  @ApiProperty() title: string;
+}
+
 export class LeadResponseDto {
   @ApiProperty({ description: 'ID Lead' })
   id: string;
@@ -26,9 +31,15 @@ export class LeadResponseDto {
   @ApiPropertyOptional({ description: 'ID Sản phẩm quan tâm' })
   targetProductId?: string | null;
 
+  @ApiPropertyOptional({ description: 'ID Vị trí tuyển dụng' })
+  targetJobId?: string | null;
+
   @ApiProperty({ description: 'Ngày tạo' })
   createdAt: Date;
 
   @ApiPropertyOptional({ type: ProductResponseDto, description: 'Thông tin sản phẩm' })
   product?: any;
+
+  @ApiPropertyOptional({ type: LeadJobDto, description: 'Thông tin vị trí tuyển dụng' })
+  job?: LeadJobDto | null;
 }

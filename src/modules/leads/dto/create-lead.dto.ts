@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsEmail, IsPhoneNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEmail } from 'class-validator';
 
 export class CreateLeadDto {
   @ApiProperty({ description: 'Họ và tên khách hàng' })
@@ -26,4 +26,9 @@ export class CreateLeadDto {
   @IsOptional()
   @IsString()
   targetProductId?: string;
+
+  @ApiPropertyOptional({ description: 'ID Vị trí tuyển dụng khách hàng muốn ứng tuyển' })
+  @IsOptional()
+  @IsString()
+  targetJobId?: string;
 }
