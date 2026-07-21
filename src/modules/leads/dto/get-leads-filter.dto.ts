@@ -36,6 +36,11 @@ export class GetLeadsFilterDto extends PageOptionsDto {
   @IsString()
   targetProductId?: string;
 
+  @ApiPropertyOptional({ description: 'ID Vị trí tuyển dụng' })
+  @IsOptional()
+  @IsString()
+  targetJobId?: string;
+
   @ApiPropertyOptional({ description: 'Sắp xếp theo (VD: createdAt_desc, createdAt_asc)', default: 'createdAt_desc' })
   @IsOptional()
   @IsString()

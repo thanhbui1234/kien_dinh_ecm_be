@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis.service';
-import { CACHE_KEYS } from '../../common/constants/cache.constant';
+import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
+import { Prisma } from '@prisma/client';
 import {
   UpdateCompanyProfileDto,
   CreateCompanyInfoDto,
@@ -34,7 +35,7 @@ export class AboutService {
     });
 
     try {
-      await this.redis.client.set(CACHE_KEYS.ABOUT.COMPANY_PROFILE, profile);
+      await this.redis.client.set(CACHE_KEYS.ABOUT.COMPANY_PROFILE, profile, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
     } catch (e) {}
 
     return profile;
@@ -65,20 +66,20 @@ export class AboutService {
     });
 
     try {
-      await this.redis.client.set(CACHE_KEYS.ABOUT.COMPANY_INFO, items);
+      await this.redis.client.set(CACHE_KEYS.ABOUT.COMPANY_INFO, items, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
     } catch (e) {}
 
     return items;
   }
 
   async createCompanyInfo(dto: CreateCompanyInfoDto) {
-    if (dto.orderIndex === undefined) {
-      const max = await this.prisma.companyInfo.aggregate({
-        _max: { orderIndex: true },
-      });
-      dto.orderIndex = (max._max.orderIndex ?? 0) + 1;
-    }
-    const result = await this.prisma.companyInfo.create({ data: dto });
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (dto.orderIndex === undefined) {
+        const max = await tx.companyInfo.aggregate({ _max: { orderIndex: true } });
+        dto.orderIndex = (max._max.orderIndex ?? 0) + 1;
+      }
+      return tx.companyInfo.create({ data: dto });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     try {
       await this.redis.client.del(CACHE_KEYS.ABOUT.COMPANY_INFO);
     } catch (e) {}
@@ -135,20 +136,20 @@ export class AboutService {
     });
 
     try {
-      await this.redis.client.set(CACHE_KEYS.ABOUT.FACILITIES, items);
+      await this.redis.client.set(CACHE_KEYS.ABOUT.FACILITIES, items, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
     } catch (e) {}
 
     return items;
   }
 
   async createFacility(dto: CreateFacilityDto) {
-    if (dto.orderIndex === undefined) {
-      const max = await this.prisma.facility.aggregate({
-        _max: { orderIndex: true },
-      });
-      dto.orderIndex = (max._max.orderIndex ?? 0) + 1;
-    }
-    const result = await this.prisma.facility.create({ data: dto });
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (dto.orderIndex === undefined) {
+        const max = await tx.facility.aggregate({ _max: { orderIndex: true } });
+        dto.orderIndex = (max._max.orderIndex ?? 0) + 1;
+      }
+      return tx.facility.create({ data: dto });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     try {
       await this.redis.client.del(CACHE_KEYS.ABOUT.FACILITIES);
     } catch (e) {}
@@ -201,20 +202,20 @@ export class AboutService {
     });
 
     try {
-      await this.redis.client.set(CACHE_KEYS.ABOUT.HISTORY_EVENTS, items);
+      await this.redis.client.set(CACHE_KEYS.ABOUT.HISTORY_EVENTS, items, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
     } catch (e) {}
 
     return items;
   }
 
   async createHistoryEvent(dto: CreateCompanyHistoryEventDto) {
-    if (dto.orderIndex === undefined) {
-      const max = await this.prisma.companyHistoryEvent.aggregate({
-        _max: { orderIndex: true },
-      });
-      dto.orderIndex = (max._max.orderIndex ?? 0) + 1;
-    }
-    const result = await this.prisma.companyHistoryEvent.create({ data: dto });
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (dto.orderIndex === undefined) {
+        const max = await tx.companyHistoryEvent.aggregate({ _max: { orderIndex: true } });
+        dto.orderIndex = (max._max.orderIndex ?? 0) + 1;
+      }
+      return tx.companyHistoryEvent.create({ data: dto });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     try {
       await this.redis.client.del(CACHE_KEYS.ABOUT.HISTORY_EVENTS);
     } catch (e) {}

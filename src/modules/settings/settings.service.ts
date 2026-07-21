@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis.service';
+import { Prisma } from '@prisma/client';
 import {
   UpdateSettingDto,
   SloganDto,
@@ -13,7 +14,7 @@ import {
   UpdateBannerDto,
   UpdateBannerOrdersDto,
 } from './dto/settings.dto';
-import { CACHE_KEYS } from '../../common/constants/cache.constant';
+import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 
 @Injectable()
 export class SettingsService {
@@ -34,17 +35,16 @@ export class SettingsService {
     const settings = await this.prisma.systemSetting.findMany();
 
     try {
-      await this.redis.client.set(CACHE_KEYS.SETTINGS.SYSTEM, settings);
+      await this.redis.client.set(CACHE_KEYS.SETTINGS.SYSTEM, settings, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
     } catch (e) {}
 
     return settings;
   }
 
   async getSettingByKey(key: string) {
-    const setting = await this.prisma.systemSetting.findUnique({
-      where: { key },
-    });
-    return setting ?? { key, value: '' };
+    const settings = await this.getSettings() as { key: string; value: string }[];
+    const found = Array.isArray(settings) ? settings.find((s) => s.key === key) : null;
+    return found ?? { key, value: '' };
   }
 
   async updateSetting(key: string, updateDto: UpdateSettingDto) {
@@ -77,20 +77,20 @@ export class SettingsService {
     });
 
     try {
-      await this.redis.client.set(CACHE_KEYS.SETTINGS.COMPANY_SLOGANS, slogans);
+      await this.redis.client.set(CACHE_KEYS.SETTINGS.COMPANY_SLOGANS, slogans, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
     } catch (e) {}
 
     return slogans;
   }
 
   async createSlogan(dto: SloganDto) {
-    if (dto.orderIndex === undefined) {
-      const maxOrder = await this.prisma.companySlogan.aggregate({
-        _max: { orderIndex: true },
-      });
-      dto.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
-    }
-    const result = await this.prisma.companySlogan.create({ data: dto });
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (dto.orderIndex === undefined) {
+        const maxOrder = await tx.companySlogan.aggregate({ _max: { orderIndex: true } });
+        dto.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
+      }
+      return tx.companySlogan.create({ data: dto });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     try {
       await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_SLOGANS);
     } catch (e) {}
@@ -154,23 +154,20 @@ export class SettingsService {
     });
 
     try {
-      await this.redis.client.set(
-        CACHE_KEYS.SETTINGS.COMPANY_TIMELINES,
-        timelines,
-      );
+      await this.redis.client.set(CACHE_KEYS.SETTINGS.COMPANY_TIMELINES, timelines, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
     } catch (e) {}
 
     return timelines;
   }
 
   async createTimeline(dto: TimelineDto) {
-    if (dto.orderIndex === undefined) {
-      const maxOrder = await this.prisma.companyTimeline.aggregate({
-        _max: { orderIndex: true },
-      });
-      dto.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
-    }
-    const result = await this.prisma.companyTimeline.create({ data: dto });
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (dto.orderIndex === undefined) {
+        const maxOrder = await tx.companyTimeline.aggregate({ _max: { orderIndex: true } });
+        dto.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
+      }
+      return tx.companyTimeline.create({ data: dto });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     try {
       await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_TIMELINES);
     } catch (e) {}
@@ -233,20 +230,20 @@ export class SettingsService {
     });
 
     try {
-      await this.redis.client.set(CACHE_KEYS.SETTINGS.BANNERS, banners);
+      await this.redis.client.set(CACHE_KEYS.SETTINGS.BANNERS, banners, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
     } catch (e) {}
 
     return banners;
   }
 
   async createBanner(dto: BannerDto) {
-    if (dto.orderIndex === undefined) {
-      const maxOrder = await this.prisma.banner.aggregate({
-        _max: { orderIndex: true },
-      });
-      dto.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
-    }
-    const result = await this.prisma.banner.create({ data: dto as any });
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (dto.orderIndex === undefined) {
+        const maxOrder = await tx.banner.aggregate({ _max: { orderIndex: true } });
+        dto.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
+      }
+      return tx.banner.create({ data: dto as any });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     try {
       await this.redis.client.del(CACHE_KEYS.SETTINGS.BANNERS);
     } catch (e) {}

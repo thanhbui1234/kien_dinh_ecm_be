@@ -171,7 +171,7 @@ export class ProjectsService {
             },
           },
         },
-        categories: true,
+        categories: { select: { categoryId: true } },
       },
     });
 
@@ -200,15 +200,27 @@ export class ProjectsService {
 
     try {
       const otherKey = isUuid ? project.slug : project.id;
-      await this.redis.client.set(cacheKey, formattedProject, { ex: CACHE_TTL.SEVEN_DAYS });
-      await this.redis.client.set(CACHE_KEYS.PROJECTS.DETAIL(otherKey), formattedProject, { ex: CACHE_TTL.SEVEN_DAYS });
+      await Promise.all([
+        this.redis.client.set(cacheKey, formattedProject, { ex: CACHE_TTL.SEVEN_DAYS }),
+        this.redis.client.set(CACHE_KEYS.PROJECTS.DETAIL(otherKey), formattedProject, { ex: CACHE_TTL.SEVEN_DAYS }),
+      ]);
     } catch (e) {}
 
     return formattedProject;
   }
 
   async update(id: string, updateProjectDto: UpdateProjectDto) {
-    const existing = await this.findOne(id);
+    const existing = await this.prisma.project.findUnique({
+      where: { id },
+      select: { slug: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException({
+        message: 'Không tìm thấy dự án',
+        errorCode: 'PROJECT_NOT_FOUND',
+      });
+    }
 
     const { contentDetail, productIds, categoryIds, images, ...projectData } = updateProjectDto;
 
@@ -267,29 +279,42 @@ export class ProjectsService {
     });
 
     try {
-      await this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL(id));
-      await this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL((existing as any).slug));
-      if (result.slug !== (existing as any).slug) {
-        await this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL(result.slug));
-      }
-      const keys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.RECENT_PREFIX);
-      if (keys.length > 0) await this.redis.client.del(...keys);
+      const delKeys = [
+        CACHE_KEYS.PROJECTS.DETAIL(id),
+        CACHE_KEYS.PROJECTS.DETAIL(existing.slug),
+        ...(result.slug !== existing.slug ? [CACHE_KEYS.PROJECTS.DETAIL(result.slug)] : []),
+      ];
+      const listKeys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.RECENT_PREFIX);
+      await Promise.all([
+        this.redis.client.del(...delKeys),
+        ...(listKeys.length > 0 ? [this.redis.client.del(...listKeys)] : []),
+      ]);
     } catch (e) {}
 
     return result;
   }
 
   async remove(id: string) {
-    const existing = await this.findOne(id);
-    const result = await this.prisma.project.delete({
+    const existing = await this.prisma.project.findUnique({
       where: { id },
+      select: { slug: true },
     });
 
+    if (!existing) {
+      throw new NotFoundException({
+        message: 'Không tìm thấy dự án',
+        errorCode: 'PROJECT_NOT_FOUND',
+      });
+    }
+
+    const result = await this.prisma.project.delete({ where: { id } });
+
     try {
-      await this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL(id));
-      await this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL((existing as any).slug));
-      const keys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.RECENT_PREFIX);
-      if (keys.length > 0) await this.redis.client.del(...keys);
+      const listKeys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.RECENT_PREFIX);
+      await Promise.all([
+        this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL(id), CACHE_KEYS.PROJECTS.DETAIL(existing.slug)),
+        ...(listKeys.length > 0 ? [this.redis.client.del(...listKeys)] : []),
+      ]);
     } catch (e) {}
 
     return result;

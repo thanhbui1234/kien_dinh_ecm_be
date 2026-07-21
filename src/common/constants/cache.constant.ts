@@ -48,5 +48,6 @@ export const CACHE_KEYS = {
     ACTIVE_LIST_PREFIX: 'jobs:list:active:*',
     GET_ACTIVE_LIST: (skip: number, limit: number) =>
       `jobs:list:active:${skip}:${limit}`,
+    DETAIL: (idOrSlug: string) => `job:detail:${idOrSlug}`,
   },
 };

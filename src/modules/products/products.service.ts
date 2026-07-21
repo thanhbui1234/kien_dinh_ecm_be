@@ -11,6 +11,13 @@ import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
 import { generateSlug } from '../../common/utils/string.util';
 
+function isSlugConflict(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  );
+}
+
 const REDIS_KEY_PRODUCT_VIEWS = 'product:views';
 const REDIS_KEY_PRODUCT_VIEWS_PROCESSING = 'product:views:processing';
 
@@ -26,24 +33,12 @@ export class ProductsService {
   async create(createProductDto: CreateProductDto) {
     const { contentDetail, specifications, features, images, parentId, categoryId, seoMeta, ...productData } = createProductDto;
 
-    let generatedSlug = generateSlug(productData.name);
-    let existingProduct = await this.prisma.product.findUnique({
-      where: { slug: generatedSlug },
-    });
-    
-    let counter = 1;
-    while (existingProduct) {
-      generatedSlug = `${generateSlug(productData.name)}-${counter}`;
-      existingProduct = await this.prisma.product.findUnique({
-        where: { slug: generatedSlug },
-      });
-      counter++;
-    }
-    productData.slug = generatedSlug;
+    productData.slug = productData.slug?.trim() || generateSlug(productData.name);
 
-    const category = await this.prisma.category.findUnique({
-      where: { id: categoryId },
-    });
+    const [category, parent] = await Promise.all([
+      this.prisma.category.findUnique({ where: { id: categoryId } }),
+      parentId ? this.prisma.product.findUnique({ where: { id: parentId } }) : null,
+    ]);
 
     if (!category) {
       throw new BadRequestException({
@@ -52,14 +47,11 @@ export class ProductsService {
       });
     }
 
-    if (parentId) {
-      const parent = await this.prisma.product.findUnique({ where: { id: parentId } });
-      if (!parent) {
-        throw new BadRequestException({
-          message: AppMessages.PRODUCT.PARENT_NOT_FOUND,
-          errorCode: 'PARENT_PRODUCT_NOT_FOUND',
-        });
-      }
+    if (parentId && !parent) {
+      throw new BadRequestException({
+        message: AppMessages.PRODUCT.PARENT_NOT_FOUND,
+        errorCode: 'PARENT_PRODUCT_NOT_FOUND',
+      });
     }
 
     const createData: Prisma.ProductCreateInput = {
@@ -89,15 +81,26 @@ export class ProductsService {
       };
     }
 
-    const newProduct = await this.prisma.product.create({
-      data: createData,
-      include: {
-        detail: true,
-        images: true,
-        category: true,
-        parent: true,
-      },
-    });
+    let newProduct: Awaited<ReturnType<typeof this.prisma.product.create>>;
+    try {
+      newProduct = await this.prisma.product.create({
+        data: createData,
+        include: {
+          detail: true,
+          images: true,
+          category: true,
+          parent: true,
+        },
+      });
+    } catch (error) {
+      if (isSlugConflict(error)) {
+        throw new ConflictException({
+          message: AppMessages.PRODUCT.SLUG_EXISTS,
+          errorCode: 'PRODUCT_SLUG_EXISTS',
+        });
+      }
+      throw error;
+    }
 
     if (newProduct.isFeatured) {
       try {
@@ -128,19 +131,7 @@ export class ProductsService {
     }
 
     const newName = `${product.name} (Copy)`;
-    let generatedSlug = generateSlug(newName);
-    let existingProduct = await this.prisma.product.findUnique({
-      where: { slug: generatedSlug },
-    });
-    
-    let counter = 1;
-    while (existingProduct) {
-      generatedSlug = `${generateSlug(newName)}-${counter}`;
-      existingProduct = await this.prisma.product.findUnique({
-        where: { slug: generatedSlug },
-      });
-      counter++;
-    }
+    const generatedSlug = generateSlug(newName);
 
     const createData: Prisma.ProductCreateInput = {
       name: newName,
@@ -177,15 +168,26 @@ export class ProductsService {
       };
     }
 
-    const newProduct = await this.prisma.product.create({
-      data: createData,
-      include: {
-        detail: true,
-        images: true,
-        category: true,
-        parent: true,
-      },
-    });
+    let newProduct: Awaited<ReturnType<typeof this.prisma.product.create>>;
+    try {
+      newProduct = await this.prisma.product.create({
+        data: createData,
+        include: {
+          detail: true,
+          images: true,
+          category: true,
+          parent: true,
+        },
+      });
+    } catch (error) {
+      if (isSlugConflict(error)) {
+        throw new ConflictException({
+          message: AppMessages.PRODUCT.SLUG_EXISTS,
+          errorCode: 'PRODUCT_SLUG_EXISTS',
+        });
+      }
+      throw error;
+    }
 
     return newProduct;
   }
@@ -342,32 +344,39 @@ export class ProductsService {
       });
     }
 
-    if (productData.slug === '') {
-      delete productData.slug;
+    const slugCheckPromise =
+      productData.slug && productData.slug !== product.slug
+        ? this.prisma.product.findUnique({ where: { slug: productData.slug } })
+        : Promise.resolve(null);
+
+    const categoryCheckPromise =
+      categoryId && categoryId !== product.categoryId
+        ? this.prisma.category.findUnique({ where: { id: categoryId } })
+        : Promise.resolve(true);
+
+    const parentCheckPromise =
+      parentId !== undefined && parentId !== null && parentId !== '' && parentId !== id
+        ? this.prisma.product.findUnique({ where: { id: parentId } })
+        : Promise.resolve(true);
+
+    const [existingSlug, category, parent] = await Promise.all([
+      slugCheckPromise,
+      categoryCheckPromise,
+      parentCheckPromise,
+    ]);
+
+    if (existingSlug) {
+      throw new ConflictException({
+        message: AppMessages.PRODUCT.SLUG_EXISTS,
+        errorCode: 'PRODUCT_SLUG_EXISTS',
+      });
     }
 
-    if (productData.slug && productData.slug !== product.slug) {
-      const existingSlug = await this.prisma.product.findUnique({
-        where: { slug: productData.slug },
+    if (category === null) {
+      throw new BadRequestException({
+        message: AppMessages.CATEGORY.NOT_FOUND,
+        errorCode: 'CATEGORY_NOT_FOUND',
       });
-      if (existingSlug) {
-        throw new ConflictException({
-          message: AppMessages.PRODUCT.SLUG_EXISTS,
-          errorCode: 'PRODUCT_SLUG_EXISTS',
-        });
-      }
-    }
-
-    if (categoryId && categoryId !== product.categoryId) {
-      const category = await this.prisma.category.findUnique({
-        where: { id: categoryId },
-      });
-      if (!category) {
-        throw new BadRequestException({
-          message: AppMessages.CATEGORY.NOT_FOUND,
-          errorCode: 'CATEGORY_NOT_FOUND',
-        });
-      }
     }
 
     if (parentId !== undefined) {
@@ -377,14 +386,11 @@ export class ProductsService {
           errorCode: 'PRODUCT_CIRCULAR_PARENT',
         });
       }
-      if (parentId !== null && parentId !== '') {
-        const parent = await this.prisma.product.findUnique({ where: { id: parentId } });
-        if (!parent) {
-          throw new BadRequestException({
-            message: AppMessages.PRODUCT.PARENT_NOT_FOUND,
-            errorCode: 'PARENT_PRODUCT_NOT_FOUND',
-          });
-        }
+      if (parentId !== null && parentId !== '' && parent === null) {
+        throw new BadRequestException({
+          message: AppMessages.PRODUCT.PARENT_NOT_FOUND,
+          errorCode: 'PARENT_PRODUCT_NOT_FOUND',
+        });
       }
     }
 
@@ -440,20 +446,20 @@ export class ProductsService {
     });
 
     try {
-      await this.redis.client.del(CACHE_KEYS.PRODUCTS.DETAIL(id));
-      if (product.slug) {
-        await this.redis.client.del(CACHE_KEYS.PRODUCTS.DETAIL(product.slug));
-      }
-      if (updatedProduct.slug && updatedProduct.slug !== product.slug) {
-        await this.redis.client.del(CACHE_KEYS.PRODUCTS.DETAIL(updatedProduct.slug));
-      }
-
+      const delKeys = [
+        CACHE_KEYS.PRODUCTS.DETAIL(id),
+        ...(product.slug ? [CACHE_KEYS.PRODUCTS.DETAIL(product.slug)] : []),
+        ...(updatedProduct.slug && updatedProduct.slug !== product.slug ? [CACHE_KEYS.PRODUCTS.DETAIL(updatedProduct.slug)] : []),
+      ];
+      const ops: Promise<any>[] = [this.redis.client.del(...delKeys)];
       if (product.isFeatured || updatedProduct.isFeatured) {
-        const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX);
-        if (keys.length > 0) {
-          await this.redis.client.del(...keys);
-        }
+        ops.push(
+          this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX).then((keys) =>
+            keys.length > 0 ? this.redis.client.del(...keys) : null
+          )
+        );
       }
+      await Promise.all(ops);
     } catch (error) {}
 
     return updatedProduct;
@@ -474,16 +480,19 @@ export class ProductsService {
     await this.prisma.product.delete({ where: { id } });
 
     try {
-      await this.redis.client.del(CACHE_KEYS.PRODUCTS.DETAIL(id));
-      if (product.slug) {
-        await this.redis.client.del(CACHE_KEYS.PRODUCTS.DETAIL(product.slug));
-      }
+      const delKeys = [
+        CACHE_KEYS.PRODUCTS.DETAIL(id),
+        ...(product.slug ? [CACHE_KEYS.PRODUCTS.DETAIL(product.slug)] : []),
+      ];
+      const ops: Promise<any>[] = [this.redis.client.del(...delKeys)];
       if (product.isFeatured) {
-        const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX);
-        if (keys.length > 0) {
-          await this.redis.client.del(...keys);
-        }
+        ops.push(
+          this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX).then((keys) =>
+            keys.length > 0 ? this.redis.client.del(...keys) : null
+          )
+        );
       }
+      await Promise.all(ops);
     } catch (error) {}
 
     return { message: AppMessages.PRODUCT.DELETE_SUCCESS };
