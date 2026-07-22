@@ -1,5 +1,6 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 // ─── Company Profile ──────────────────────────────────────────────────────────
 
@@ -60,11 +61,6 @@ export class CompanyInfoResponseDto extends CreateCompanyInfoDto {
 // ─── Facility ─────────────────────────────────────────────────────────────────
 
 export class CreateFacilityDto {
-  @ApiProperty({ description: 'Khu vực / vùng lãnh thổ', example: 'Đông Nam Á' })
-  @IsString()
-  @IsNotEmpty()
-  region: string;
-
   @ApiProperty({ description: 'Quốc gia', example: 'Việt Nam' })
   @IsString()
   @IsNotEmpty()
@@ -137,4 +133,23 @@ export class UpdateCompanyHistoryEventDto extends PartialType(CreateCompanyHisto
 export class CompanyHistoryEventResponseDto extends CreateCompanyHistoryEventDto {
   @ApiProperty({ description: 'ID' })
   id: string;
+}
+
+export class UpdateHistoryEventOrderDto {
+  @ApiProperty({ description: 'ID của sự kiện lịch sử' })
+  @IsString()
+  @IsNotEmpty()
+  id: string;
+
+  @ApiProperty({ description: 'Thứ tự mới' })
+  @IsNumber()
+  orderIndex: number;
+}
+
+export class UpdateHistoryEventOrdersDto {
+  @ApiProperty({ type: [UpdateHistoryEventOrderDto], description: 'Danh sách sự kiện với thứ tự mới' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateHistoryEventOrderDto)
+  events: UpdateHistoryEventOrderDto[];
 }

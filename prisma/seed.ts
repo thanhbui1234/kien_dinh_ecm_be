@@ -15,12 +15,12 @@ async function main() {
   console.log('🌱 Đang kích hoạt tiến trình rải dữ liệu mồi...');
 
   // 1. Mã hóa mật khẩu bảo mật cho Admin bằng Bcrypt
-  const hashedPassword = await bcrypt.hash('phamducngu123', 10);
+  const hashedPassword = await bcrypt.hash('admin123', 10);
 
   // 2. Tạo tài khoản Admin mặc định
   const defaultAdmin = await prisma.user.upsert({
     where: { email: 'admin@kiendinh.com' },
-    update: {},
+    update: { password: hashedPassword },
     create: {
       email: 'admin@kiendinh.com',
       password: hashedPassword,
@@ -227,7 +227,6 @@ async function main() {
   // --- SEED ABOUT US (Xóa dữ liệu cũ nếu chạy nhiều lần) ---
   await prisma.banner.deleteMany();
   await prisma.companySlogan.deleteMany();
-  await prisma.companyTimeline.deleteMany();
   await prisma.companyInfo.deleteMany();
   await prisma.facility.deleteMany();
 
@@ -250,17 +249,6 @@ async function main() {
     await prisma.companySlogan.create({ data: s });
   }
 
-  // Company Timeline
-  const timelineData = [
-    { year: '1919', title: 'Thành lập tại Nhật Bản', description: 'Thành lập Yamazaki Machinery Works tại Nagoya.', orderIndex: 1 },
-    { year: '1974', title: 'Maza-Turn ra mắt', description: 'Giới thiệu máy tiện CNC Maza-Turn, cách mạng hóa ngành gia công.', orderIndex: 2 },
-    { year: '2007', title: 'Mazak Việt Nam', description: 'Mở văn phòng đại diện và trung tâm công nghệ đầu tiên tại Hà Nội.', orderIndex: 3 },
-    { year: '2020', title: 'Giải pháp iSmart', description: 'Ra mắt hệ sinh thái nhà máy thông minh Mazak iSmart Factory.', orderIndex: 4 },
-  ];
-  for (const t of timelineData) {
-    await prisma.companyTimeline.create({ data: t });
-  }
-
   // Company Info
   const companyInfoData = [
     { label: 'Tên công ty', value: 'Yamazaki Mazak Vietnam', orderIndex: 1 },
@@ -274,10 +262,10 @@ async function main() {
 
   // Facility
   const facilityData = [
-    { region: 'Nhật Bản', country: 'Nhật Bản', name: 'Nhà máy Oguchi (Trụ sở chính)', address: '1-131 Takeda, Oguchi-cho, Niwa-gun, Aichi-pref.', phone: '+81 587-95-1131', imageUrl: 'https://placehold.co/500x300/e0e0e0/000000?text=Oguchi+Plant', orderIndex: 1 },
-    { region: 'Châu Á', country: 'Singapore', name: 'Nhà máy & Trung tâm Đông Nam Á', address: '21 Joo Koon Circle, Singapore 629053', phone: '+65 6861 6811', imageUrl: 'https://placehold.co/500x300/e0e0e0/000000?text=Singapore+Tech+Center', orderIndex: 2 },
-    { region: 'Châu Á', country: 'Việt Nam', name: 'Trung tâm kỹ thuật Mazak Hà Nội', address: 'KCN Bắc Thăng Long, Đông Anh, Hà Nội', phone: '+84 24 3959 0001', imageUrl: 'https://placehold.co/500x300/e0e0e0/000000?text=Hanoi+Tech+Center', orderIndex: 3 },
-    { region: 'Châu Á', country: 'Việt Nam', name: 'Văn phòng đại diện Hồ Chí Minh', address: 'Quận Tân Bình, TP. Hồ Chí Minh', phone: '+84 28 3811 1123', imageUrl: 'https://placehold.co/500x300/e0e0e0/000000?text=HCM+Branch', orderIndex: 4 },
+    { country: 'Nhật Bản', name: 'Nhà máy Oguchi (Trụ sở chính)', address: '1-131 Takeda, Oguchi-cho, Niwa-gun, Aichi-pref.', phone: '+81 587-95-1131', imageUrl: 'https://placehold.co/500x300/e0e0e0/000000?text=Oguchi+Plant', orderIndex: 1 },
+    { country: 'Singapore', name: 'Nhà máy & Trung tâm Đông Nam Á', address: '21 Joo Koon Circle, Singapore 629053', phone: '+65 6861 6811', imageUrl: 'https://placehold.co/500x300/e0e0e0/000000?text=Singapore+Tech+Center', orderIndex: 2 },
+    { country: 'Việt Nam', name: 'Trung tâm kỹ thuật Mazak Hà Nội', address: 'KCN Bắc Thăng Long, Đông Anh, Hà Nội', phone: '+84 24 3959 0001', imageUrl: 'https://placehold.co/500x300/e0e0e0/000000?text=Hanoi+Tech+Center', orderIndex: 3 },
+    { country: 'Việt Nam', name: 'Văn phòng đại diện Hồ Chí Minh', address: 'Quận Tân Bình, TP. Hồ Chí Minh', phone: '+84 28 3811 1123', imageUrl: 'https://placehold.co/500x300/e0e0e0/000000?text=HCM+Branch', orderIndex: 4 },
   ];
   for (const f of facilityData) {
     await prisma.facility.create({ data: f });
@@ -285,7 +273,7 @@ async function main() {
 
   console.log('✅ Bơm tài khoản Admin và Dữ liệu mẫu (gồm About/Enterprise modules) thành công!');
   console.log(`➡️ Email: ${defaultAdmin.email}`);
-  console.log('➡️ Password: phamducngu123');
+  console.log('➡️ Password: admin123');
 }
 
 main()

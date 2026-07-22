@@ -39,33 +39,6 @@ export class SloganDto {
   orderIndex?: number;
 }
 
-export class TimelineDto {
-  @ApiProperty({ description: 'Năm' })
-  @IsString()
-  @IsNotEmpty()
-  year: string;
-
-  @ApiProperty({ description: 'Tiêu đề sự kiện' })
-  @IsString()
-  @IsNotEmpty()
-  title: string;
-
-  @ApiProperty({ description: 'Mô tả chi tiết' })
-  @IsString()
-  @IsNotEmpty()
-  description: string;
-
-  @ApiProperty({ description: 'URL ảnh minh họa cột mốc', required: false })
-  @IsOptional()
-  @IsString()
-  imageUrl?: string;
-
-  @ApiProperty({ description: 'Thứ tự hiển thị', default: 0, required: false })
-  @IsOptional()
-  @IsNumber()
-  orderIndex?: number;
-}
-
 export class UpdateSloganDto extends PartialType(SloganDto) {}
 
 export class SloganResponseDto extends SloganDto {
@@ -90,32 +63,6 @@ export class UpdateSloganOrdersDto {
   @ValidateNested({ each: true })
   @Type(() => UpdateSloganOrderDto)
   slogans: UpdateSloganOrderDto[];
-}
-
-export class UpdateTimelineDto extends PartialType(TimelineDto) {}
-
-export class TimelineResponseDto extends TimelineDto {
-  @ApiProperty({ description: 'ID' })
-  id: string;
-}
-
-export class UpdateTimelineOrderDto {
-  @ApiProperty({ description: 'ID của timeline' })
-  @IsString()
-  @IsNotEmpty()
-  id: string;
-
-  @ApiProperty({ description: 'Thứ tự mới' })
-  @IsNumber()
-  orderIndex: number;
-}
-
-export class UpdateTimelineOrdersDto {
-  @ApiProperty({ type: [UpdateTimelineOrderDto], description: 'Danh sách timeline với thứ tự mới' })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => UpdateTimelineOrderDto)
-  timelines: UpdateTimelineOrderDto[];
 }
 
 export class BannerDto {

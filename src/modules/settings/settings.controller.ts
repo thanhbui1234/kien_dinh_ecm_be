@@ -15,10 +15,6 @@ import {
   UpdateSloganDto,
   SloganResponseDto,
   UpdateSloganOrdersDto,
-  TimelineDto,
-  UpdateTimelineDto,
-  TimelineResponseDto,
-  UpdateTimelineOrdersDto,
   BannerDto,
   BannerResponseDto,
   UpdateBannerOrdersDto,
@@ -132,65 +128,6 @@ export class SettingsController {
   @Delete('slogans/:id')
   deleteSlogan(@Param('id') id: string) {
     return this.settingsService.deleteSlogan(id);
-  }
-
-  // --- COMPANY TIMELINE ---
-  @ApiOperation({ summary: 'Lấy dòng thời gian lịch sử' })
-  @ApiSuccessResponse({
-    model: TimelineResponseDto,
-    isArray: true,
-    description: 'Lấy danh sách timeline thành công',
-  })
-  @Public()
-  @Get('timelines')
-  getTimelines() {
-    return this.settingsService.getTimelines();
-  }
-
-  @ApiOperation({ summary: 'Thêm mốc lịch sử mới' })
-  @ApiBearerAuth('JWT-auth')
-  @ApiSuccessResponse({
-    model: TimelineResponseDto,
-    status: 201,
-    description: 'Thêm timeline thành công',
-  })
-  @Post('timelines')
-  createTimeline(@Body() dto: TimelineDto) {
-    return this.settingsService.createTimeline(dto);
-  }
-
-  @ApiOperation({ summary: 'Cập nhật thứ tự timeline hàng loạt' })
-  @ApiBearerAuth('JWT-auth')
-  @ApiSuccessResponse({
-    model: TimelineResponseDto,
-    isArray: true,
-    description: 'Cập nhật thứ tự thành công',
-  })
-  @Patch('timelines/order')
-  updateTimelineOrders(@Body() dto: UpdateTimelineOrdersDto) {
-    return this.settingsService.updateTimelineOrders(dto);
-  }
-
-  @ApiOperation({ summary: 'Cập nhật mốc lịch sử' })
-  @ApiBearerAuth('JWT-auth')
-  @ApiSuccessResponse({
-    model: TimelineResponseDto,
-    description: 'Cập nhật timeline thành công',
-  })
-  @Patch('timelines/:id')
-  updateTimeline(@Param('id') id: string, @Body() dto: UpdateTimelineDto) {
-    return this.settingsService.updateTimeline(id, dto);
-  }
-
-  @ApiOperation({ summary: 'Xóa mốc lịch sử' })
-  @ApiBearerAuth('JWT-auth')
-  @ApiSuccessResponse({
-    model: TimelineResponseDto,
-    description: 'Xóa timeline thành công',
-  })
-  @Delete('timelines/:id')
-  deleteTimeline(@Param('id') id: string) {
-    return this.settingsService.deleteTimeline(id);
   }
 
   // --- BANNERS ---

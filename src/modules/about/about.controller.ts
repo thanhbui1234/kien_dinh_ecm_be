@@ -21,6 +21,7 @@ import {
   CreateCompanyHistoryEventDto,
   UpdateCompanyHistoryEventDto,
   CompanyHistoryEventResponseDto,
+  UpdateHistoryEventOrdersDto,
 } from './dto/about.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import {
@@ -175,6 +176,18 @@ export class AboutController {
   @Post('history-events')
   createHistoryEvent(@Body() dto: CreateCompanyHistoryEventDto) {
     return this.aboutService.createHistoryEvent(dto);
+  }
+
+  @ApiOperation({ summary: 'Cập nhật thứ tự sự kiện lịch sử hàng loạt' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({
+    model: CompanyHistoryEventResponseDto,
+    isArray: true,
+    description: 'Cập nhật thứ tự thành công',
+  })
+  @Patch('history-events/order')
+  updateHistoryEventOrders(@Body() dto: UpdateHistoryEventOrdersDto) {
+    return this.aboutService.updateHistoryEventOrders(dto);
   }
 
   @ApiOperation({ summary: 'Cập nhật sự kiện lịch sử' })

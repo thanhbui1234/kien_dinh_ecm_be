@@ -7,9 +7,6 @@ import {
   SloganDto,
   UpdateSloganDto,
   UpdateSloganOrdersDto,
-  TimelineDto,
-  UpdateTimelineDto,
-  UpdateTimelineOrdersDto,
   BannerDto,
   UpdateBannerDto,
   UpdateBannerOrdersDto,
@@ -134,83 +131,6 @@ export class SettingsService {
     const result = await this.prisma.companySlogan.delete({ where: { id } });
     try {
       await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_SLOGANS);
-    } catch (e) {}
-    return result;
-  }
-
-  // --- COMPANY TIMELINE ---
-  async getTimelines() {
-    try {
-      const cached = await this.redis.client.get(
-        CACHE_KEYS.SETTINGS.COMPANY_TIMELINES,
-      );
-      if (cached) {
-        return cached;
-      }
-    } catch (e) {}
-
-    const timelines = await this.prisma.companyTimeline.findMany({
-      orderBy: { orderIndex: 'asc' },
-    });
-
-    try {
-      await this.redis.client.set(CACHE_KEYS.SETTINGS.COMPANY_TIMELINES, timelines, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
-    } catch (e) {}
-
-    return timelines;
-  }
-
-  async createTimeline(dto: TimelineDto) {
-    const result = await this.prisma.$transaction(async (tx) => {
-      if (dto.orderIndex === undefined) {
-        const maxOrder = await tx.companyTimeline.aggregate({ _max: { orderIndex: true } });
-        dto.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
-      }
-      return tx.companyTimeline.create({ data: dto });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    try {
-      await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_TIMELINES);
-    } catch (e) {}
-    return result;
-  }
-
-  async updateTimeline(id: string, dto: UpdateTimelineDto) {
-    const existing = await this.prisma.companyTimeline.findUnique({ where: { id } });
-    if (!existing) {
-      throw new NotFoundException({
-        message: 'Không tìm thấy timeline',
-        errorCode: 'TIMELINE_NOT_FOUND',
-      });
-    }
-    const result = await this.prisma.companyTimeline.update({
-      where: { id },
-      data: dto as any,
-    });
-    try {
-      await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_TIMELINES);
-    } catch (e) {}
-    return result;
-  }
-
-  async updateTimelineOrders(dto: UpdateTimelineOrdersDto) {
-    const result = await this.prisma.$transaction(
-      dto.timelines.map((timeline) =>
-        this.prisma.companyTimeline.update({
-          where: { id: timeline.id },
-          data: { orderIndex: timeline.orderIndex },
-        }),
-      ),
-    );
-    try {
-      await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_TIMELINES);
-    } catch (e) {}
-    return result;
-  }
-
-  async deleteTimeline(id: string) {
-    const result = await this.prisma.companyTimeline.delete({ where: { id } });
-    try {
-      await this.redis.client.del(CACHE_KEYS.SETTINGS.COMPANY_TIMELINES);
     } catch (e) {}
     return result;
   }
