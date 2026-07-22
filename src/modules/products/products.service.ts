@@ -189,6 +189,15 @@ export class ProductsService {
       throw error;
     }
 
+    if (newProduct.isFeatured) {
+      try {
+        const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX);
+        if (keys.length > 0) {
+          await this.redis.client.del(...keys);
+        }
+      } catch (error) {}
+    }
+
     return newProduct;
   }
 
@@ -585,6 +594,13 @@ export class ProductsService {
 
         await this.prisma.$transaction(prismaOps);
         this.logger.log(`[CronJob] Synced view counts for ${updates.length} products to DB.`);
+
+        try {
+          const cacheDelOps = updates.map((item) =>
+            this.redis.client.del(CACHE_KEYS.PRODUCTS.DETAIL(item.productId)),
+          );
+          await Promise.all(cacheDelOps);
+        } catch (error) {}
       }
 
       // Bước 5: Xóa key processing sau khi đồng bộ xong
