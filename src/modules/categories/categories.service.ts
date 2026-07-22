@@ -53,7 +53,7 @@ export class CategoriesService {
 
     try {
       await this.redis.client.del(CACHE_KEYS.CATEGORIES.FLAT);
-    } catch (e) {}
+    } catch (e) { }
     return newCategory;
   }
   async findAll() {
@@ -153,7 +153,7 @@ export class CategoriesService {
 
     try {
       await this.redis.client.del(CACHE_KEYS.CATEGORIES.FLAT);
-    } catch (e) {}
+    } catch (e) { }
     return updatedCategory;
   }
 
@@ -180,7 +180,8 @@ export class CategoriesService {
         errorCode: 'CATEGORY_HAS_CHILDREN',
       });
     }
-
+    console.log('count product', category._count.products)
+    console.log('count projectMappings', category._count.projectMappings)
     if (category._count.products > 0 || category._count.projectMappings > 0) {
       throw new BadRequestException({
         message: AppMessages.CATEGORY.HAS_RELATIONS,
@@ -191,7 +192,7 @@ export class CategoriesService {
     await this.prisma.category.delete({ where: { id } });
     try {
       await this.redis.client.del(CACHE_KEYS.CATEGORIES.FLAT);
-    } catch (e) {}
+    } catch (e) { }
 
     return { message: AppMessages.CATEGORY.DELETE_SUCCESS };
   }
