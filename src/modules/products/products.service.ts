@@ -28,12 +28,12 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-  ) {}
+  ) { }
 
   async create(createProductDto: CreateProductDto) {
     const { contentDetail, specifications, features, images, parentId, categoryId, seoMeta, ...productData } = createProductDto;
 
-    productData.slug = productData.slug?.trim() || generateSlug(productData.name);
+    productData.slug = generateSlug(productData.name);
 
     const [category, parent] = await Promise.all([
       this.prisma.category.findUnique({ where: { id: categoryId } }),
@@ -108,7 +108,7 @@ export class ProductsService {
         if (keys.length > 0) {
           await this.redis.client.del(...keys);
         }
-      } catch (error) {}
+      } catch (error) { }
     }
 
     return newProduct;
@@ -189,6 +189,15 @@ export class ProductsService {
       throw error;
     }
 
+    if (newProduct.isFeatured) {
+      try {
+        const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX);
+        if (keys.length > 0) {
+          await this.redis.client.del(...keys);
+        }
+      } catch (error) { }
+    }
+
     return newProduct;
   }
 
@@ -211,6 +220,7 @@ export class ProductsService {
     }
 
     const isCacheable = Object.keys(where).length === 1 && where.isFeatured === true;
+    console.log("isCacheable", isCacheable)
     const cacheKey = CACHE_KEYS.PRODUCTS.GET_FEATURED(skip || 0, limit || 10);
 
     if (isCacheable) {
@@ -219,7 +229,7 @@ export class ProductsService {
         if (cached) {
           return cached;
         }
-      } catch (error) {}
+      } catch (error) { }
     }
 
     let orderBy: Prisma.ProductOrderByWithRelationInput | Prisma.ProductOrderByWithRelationInput[] = { createdAt: 'desc' };
@@ -254,7 +264,7 @@ export class ProductsService {
     if (isCacheable) {
       try {
         await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.ONE_HOUR });
-      } catch (error) {}
+      } catch (error) { }
     }
 
     return result;
@@ -269,7 +279,7 @@ export class ProductsService {
       if (cached) {
         return cached;
       }
-    } catch (error) {}
+    } catch (error) { }
 
     const product = await this.prisma.product.findFirst({
       where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
@@ -295,7 +305,7 @@ export class ProductsService {
       if (otherKey) {
         await this.redis.client.set(CACHE_KEYS.PRODUCTS.DETAIL(otherKey), product, { ex: CACHE_TTL.TWELVE_HOURS });
       }
-    } catch (error) {}
+    } catch (error) { }
 
     return product;
   }
@@ -342,6 +352,10 @@ export class ProductsService {
         message: AppMessages.PRODUCT.NOT_FOUND,
         errorCode: 'PRODUCT_NOT_FOUND',
       });
+    }
+
+    if (productData.name) {
+      productData.slug = generateSlug(productData.name);
     }
 
     const slugCheckPromise =
@@ -428,8 +442,8 @@ export class ProductsService {
 
     if (images) {
       updateData.images = {
-        deleteMany: {}, 
-        create: images, 
+        deleteMany: {},
+        create: images,
       };
     }
 
@@ -460,7 +474,7 @@ export class ProductsService {
         );
       }
       await Promise.all(ops);
-    } catch (error) {}
+    } catch (error) { }
 
     return updatedProduct;
   }
@@ -493,7 +507,7 @@ export class ProductsService {
         );
       }
       await Promise.all(ops);
-    } catch (error) {}
+    } catch (error) { }
 
     return { message: AppMessages.PRODUCT.DELETE_SUCCESS };
   }
@@ -510,7 +524,7 @@ export class ProductsService {
     // 1. Kiểm tra IP trong Redis xem đã view trong 12 tiếng qua chưa (Chống spam)
     const clientIp = ip || 'unknown';
     const ipKey = `product:view:${id}:ip:${clientIp}`;
-    
+
     // Lưu key với thời gian sống 12 tiếng (43200s), nx: true nghĩa là chỉ set nếu chưa tồn tại
     const isNewView = await this.redis.client.set(ipKey, '1', { ex: 43200, nx: true });
 
@@ -526,7 +540,7 @@ export class ProductsService {
     } catch (error) {
       this.logger.error(`Failed to increment view delta for product ${id} in Redis`, error);
     }
-    
+
     return { success: true };
   }
 
@@ -585,6 +599,13 @@ export class ProductsService {
 
         await this.prisma.$transaction(prismaOps);
         this.logger.log(`[CronJob] Synced view counts for ${updates.length} products to DB.`);
+
+        try {
+          const cacheDelOps = updates.map((item) =>
+            this.redis.client.del(CACHE_KEYS.PRODUCTS.DETAIL(item.productId)),
+          );
+          await Promise.all(cacheDelOps);
+        } catch (error) { }
       }
 
       // Bước 5: Xóa key processing sau khi đồng bộ xong

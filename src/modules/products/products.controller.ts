@@ -12,7 +12,7 @@ import { ProductResponseDto } from './dto/product-response.dto';
 @ApiStandardErrors()
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(private readonly productsService: ProductsService) { }
 
   @ApiOperation({ summary: 'Tạo sản phẩm mới' })
   @ApiBearerAuth('JWT-auth')
@@ -35,6 +35,7 @@ export class ProductsController {
   @Public()
   @Get()
   findAll(@Query() filterDto: GetProductsFilterDto) {
+    console.log("data")
     return this.productsService.findAll(filterDto);
   }
 
