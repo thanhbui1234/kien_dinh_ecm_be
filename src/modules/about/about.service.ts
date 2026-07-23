@@ -11,6 +11,7 @@ import {
   UpdateFacilityDto,
   CreateCompanyHistoryEventDto,
   UpdateCompanyHistoryEventDto,
+  UpdateHistoryEventOrdersDto,
 } from './dto/about.dto';
 
 @Injectable()
@@ -231,6 +232,21 @@ export class AboutService {
       });
     }
     const result = await this.prisma.companyHistoryEvent.update({ where: { id }, data: dto });
+    try {
+      await this.redis.client.del(CACHE_KEYS.ABOUT.HISTORY_EVENTS);
+    } catch (e) {}
+    return result;
+  }
+
+  async updateHistoryEventOrders(dto: UpdateHistoryEventOrdersDto) {
+    const result = await this.prisma.$transaction(
+      dto.events.map((event) =>
+        this.prisma.companyHistoryEvent.update({
+          where: { id: event.id },
+          data: { orderIndex: event.orderIndex },
+        }),
+      ),
+    );
     try {
       await this.redis.client.del(CACHE_KEYS.ABOUT.HISTORY_EVENTS);
     } catch (e) {}

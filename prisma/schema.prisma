@@ -172,7 +172,6 @@ model CompanyInfo {
 
 model Facility {
   id         String  @id @default(uuid())
-  region     String
   country    String
   name       String
   address    String
