@@ -18,7 +18,6 @@ export const CACHE_KEYS = {
   SETTINGS: {
     SYSTEM: 'system:settings',
     COMPANY_SLOGANS: 'system:company_slogans',
-    COMPANY_TIMELINES: 'system:company_timelines',
     BANNERS: 'system:banners',
   },
 

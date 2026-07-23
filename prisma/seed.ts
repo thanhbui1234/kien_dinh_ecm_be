@@ -227,7 +227,6 @@ async function main() {
   // --- SEED ABOUT US (Xóa dữ liệu cũ nếu chạy nhiều lần) ---
   await prisma.banner.deleteMany();
   await prisma.companySlogan.deleteMany();
-  await prisma.companyTimeline.deleteMany();
   await prisma.companyInfo.deleteMany();
   await prisma.facility.deleteMany();
 
@@ -248,17 +247,6 @@ async function main() {
   ];
   for (const s of sloganData) {
     await prisma.companySlogan.create({ data: s });
-  }
-
-  // Company Timeline
-  const timelineData = [
-    { year: '1919', title: 'Thành lập tại Nhật Bản', description: 'Thành lập Yamazaki Machinery Works tại Nagoya.', orderIndex: 1 },
-    { year: '1974', title: 'Maza-Turn ra mắt', description: 'Giới thiệu máy tiện CNC Maza-Turn, cách mạng hóa ngành gia công.', orderIndex: 2 },
-    { year: '2007', title: 'Mazak Việt Nam', description: 'Mở văn phòng đại diện và trung tâm công nghệ đầu tiên tại Hà Nội.', orderIndex: 3 },
-    { year: '2020', title: 'Giải pháp iSmart', description: 'Ra mắt hệ sinh thái nhà máy thông minh Mazak iSmart Factory.', orderIndex: 4 },
-  ];
-  for (const t of timelineData) {
-    await prisma.companyTimeline.create({ data: t });
   }
 
   // Company Info
