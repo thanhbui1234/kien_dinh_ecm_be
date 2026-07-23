@@ -56,7 +56,7 @@ export class JobsService {
     });
     
     try { 
-      const keys = await this.redis.client.keys(CACHE_KEYS.JOBS.ACTIVE_LIST_PREFIX);
+      const keys = await this.redis.client.keys(CACHE_KEYS.JOBS.LIST_PREFIX);
       if (keys.length > 0) {
         await this.redis.client.del(...keys);
       }
@@ -80,17 +80,14 @@ export class JobsService {
       where.status = status;
     }
 
-    const isCacheable = status === true && !search;
-    const cacheKey = CACHE_KEYS.JOBS.GET_ACTIVE_LIST(skip, limit);
+    const cacheKey = CACHE_KEYS.JOBS.GET_LIST(filterDto);
 
-    if (isCacheable) {
-      try {
-        const cached = await this.redis.client.get(cacheKey);
-        if (cached) {
-          return cached as PageDto<any>;
-        }
-      } catch (e) {}
-    }
+    try {
+      const cached = await this.redis.client.get(cacheKey);
+      if (cached) {
+        return cached as PageDto<any>;
+      }
+    } catch (e) {}
 
     const [jobs, total] = await this.prisma.$transaction([
       this.prisma.jobPost.findMany({
@@ -105,11 +102,9 @@ export class JobsService {
     const pageMetaDto = new PageMetaDto(total, filterDto, jobs.length);
     const result = new PageDto(jobs, pageMetaDto);
 
-    if (isCacheable) {
-      try {
-        await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
-      } catch (e) {}
-    }
+    try {
+      await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
+    } catch (e) {}
 
     return result;
   }
@@ -198,7 +193,7 @@ export class JobsService {
         CACHE_KEYS.JOBS.DETAIL(existing.slug),
         ...(result.slug !== existing.slug ? [CACHE_KEYS.JOBS.DETAIL(result.slug)] : []),
       ];
-      const listKeys = await this.redis.client.keys(CACHE_KEYS.JOBS.ACTIVE_LIST_PREFIX);
+      const listKeys = await this.redis.client.keys(CACHE_KEYS.JOBS.LIST_PREFIX);
       await Promise.all([
         this.redis.client.del(...delKeys),
         ...(listKeys.length > 0 ? [this.redis.client.del(...listKeys)] : []),
@@ -220,7 +215,7 @@ export class JobsService {
     });
     
     try {
-      const listKeys = await this.redis.client.keys(CACHE_KEYS.JOBS.ACTIVE_LIST_PREFIX);
+      const listKeys = await this.redis.client.keys(CACHE_KEYS.JOBS.LIST_PREFIX);
       await Promise.all([
         this.redis.client.del(CACHE_KEYS.JOBS.DETAIL(id), CACHE_KEYS.JOBS.DETAIL(existing.slug)),
         ...(listKeys.length > 0 ? [this.redis.client.del(...listKeys)] : []),

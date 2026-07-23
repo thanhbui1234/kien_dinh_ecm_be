@@ -79,7 +79,7 @@ export class ProjectsService {
     });
 
     try { 
-      const keys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.RECENT_PREFIX);
+      const keys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.LIST_PREFIX);
       if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) {}
 
@@ -105,17 +105,14 @@ export class ProjectsService {
       where.isFeatured = isFeatured === 'true' as any ? true : (isFeatured === 'false' as any ? false : isFeatured);
     }
 
-    const isCacheable = !search;
-    const cacheKey = CACHE_KEYS.PROJECTS.GET_RECENT(skip, limit, status, isFeatured);
+    const cacheKey = CACHE_KEYS.PROJECTS.GET_LIST(filterDto);
 
-    if (isCacheable) {
-      try {
-        const cached = await this.redis.client.get(cacheKey);
-        if (cached) {
-          return cached as PageDto<any>;
-        }
-      } catch (e) {}
-    }
+    try {
+      const cached = await this.redis.client.get(cacheKey);
+      if (cached) {
+        return cached as PageDto<any>;
+      }
+    } catch (e) {}
 
     const [projects, total] = await this.prisma.$transaction([
       this.prisma.project.findMany({
@@ -131,11 +128,9 @@ export class ProjectsService {
     const pageMetaDto = new PageMetaDto(total, filterDto, projects.length);
     const result = new PageDto(projects, pageMetaDto);
 
-    if (isCacheable) {
-      try {
-        await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.SEVEN_DAYS });
-      } catch (e) {}
-    }
+    try {
+      await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.SEVEN_DAYS });
+    } catch (e) {}
 
     return result;
   }
@@ -284,7 +279,7 @@ export class ProjectsService {
         CACHE_KEYS.PROJECTS.DETAIL(existing.slug),
         ...(result.slug !== existing.slug ? [CACHE_KEYS.PROJECTS.DETAIL(result.slug)] : []),
       ];
-      const listKeys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.RECENT_PREFIX);
+      const listKeys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.LIST_PREFIX);
       await Promise.all([
         this.redis.client.del(...delKeys),
         ...(listKeys.length > 0 ? [this.redis.client.del(...listKeys)] : []),
@@ -310,7 +305,7 @@ export class ProjectsService {
     const result = await this.prisma.project.delete({ where: { id } });
 
     try {
-      const listKeys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.RECENT_PREFIX);
+      const listKeys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.LIST_PREFIX);
       await Promise.all([
         this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL(id), CACHE_KEYS.PROJECTS.DETAIL(existing.slug)),
         ...(listKeys.length > 0 ? [this.redis.client.del(...listKeys)] : []),
