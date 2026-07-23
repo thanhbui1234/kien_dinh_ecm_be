@@ -102,14 +102,12 @@ export class ProductsService {
       throw error;
     }
 
-    if (newProduct.isFeatured) {
-      try {
-        const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX);
-        if (keys.length > 0) {
-          await this.redis.client.del(...keys);
-        }
-      } catch (error) { }
-    }
+    try {
+      const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.LIST_PREFIX);
+      if (keys.length > 0) {
+        await this.redis.client.del(...keys);
+      }
+    } catch (error) { }
 
     return newProduct;
   }
@@ -189,14 +187,12 @@ export class ProductsService {
       throw error;
     }
 
-    if (newProduct.isFeatured) {
-      try {
-        const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX);
-        if (keys.length > 0) {
-          await this.redis.client.del(...keys);
-        }
-      } catch (error) { }
-    }
+    try {
+      const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.LIST_PREFIX);
+      if (keys.length > 0) {
+        await this.redis.client.del(...keys);
+      }
+    } catch (error) { }
 
     return newProduct;
   }
@@ -219,18 +215,14 @@ export class ProductsService {
       where.isFeatured = isFeatured === 'true' as any ? true : (isFeatured === 'false' as any ? false : isFeatured);
     }
 
-    const isCacheable = Object.keys(where).length === 1 && where.isFeatured === true;
-    console.log("isCacheable", isCacheable)
-    const cacheKey = CACHE_KEYS.PRODUCTS.GET_FEATURED(skip || 0, limit || 10);
+    const cacheKey = CACHE_KEYS.PRODUCTS.GET_LIST(filterDto);
 
-    if (isCacheable) {
-      try {
-        const cached = await this.redis.client.get(cacheKey);
-        if (cached) {
-          return cached;
-        }
-      } catch (error) { }
-    }
+    try {
+      const cached = await this.redis.client.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    } catch (error) { }
 
     let orderBy: Prisma.ProductOrderByWithRelationInput | Prisma.ProductOrderByWithRelationInput[] = { createdAt: 'desc' };
     if (sortBy === 'category') {
@@ -261,11 +253,9 @@ export class ProductsService {
     const pageMetaDto = new PageMetaDto(totalItems, filterDto, items.length);
     const result = new PageDto(items, pageMetaDto);
 
-    if (isCacheable) {
-      try {
-        await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.ONE_HOUR });
-      } catch (error) { }
-    }
+    try {
+      await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.ONE_HOUR });
+    } catch (error) { }
 
     return result;
   }
@@ -466,13 +456,11 @@ export class ProductsService {
         ...(updatedProduct.slug && updatedProduct.slug !== product.slug ? [CACHE_KEYS.PRODUCTS.DETAIL(updatedProduct.slug)] : []),
       ];
       const ops: Promise<any>[] = [this.redis.client.del(...delKeys)];
-      if (product.isFeatured || updatedProduct.isFeatured) {
-        ops.push(
-          this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX).then((keys) =>
-            keys.length > 0 ? this.redis.client.del(...keys) : null
-          )
-        );
-      }
+      ops.push(
+        this.redis.client.keys(CACHE_KEYS.PRODUCTS.LIST_PREFIX).then((keys) =>
+          keys.length > 0 ? this.redis.client.del(...keys) : null
+        )
+      );
       await Promise.all(ops);
     } catch (error) { }
 
@@ -499,13 +487,11 @@ export class ProductsService {
         ...(product.slug ? [CACHE_KEYS.PRODUCTS.DETAIL(product.slug)] : []),
       ];
       const ops: Promise<any>[] = [this.redis.client.del(...delKeys)];
-      if (product.isFeatured) {
-        ops.push(
-          this.redis.client.keys(CACHE_KEYS.PRODUCTS.FEATURED_PREFIX).then((keys) =>
-            keys.length > 0 ? this.redis.client.del(...keys) : null
-          )
-        );
-      }
+      ops.push(
+        this.redis.client.keys(CACHE_KEYS.PRODUCTS.LIST_PREFIX).then((keys) =>
+          keys.length > 0 ? this.redis.client.del(...keys) : null
+        )
+      );
       await Promise.all(ops);
     } catch (error) { }
 

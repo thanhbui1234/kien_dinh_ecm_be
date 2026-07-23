@@ -29,9 +29,16 @@ export const CACHE_KEYS = {
 
   // --- PRODUCTS ---
   PRODUCTS: {
-    FEATURED_PREFIX: 'products:featured:*',
-    GET_FEATURED: (skip: number, limit: number) =>
-      `products:featured:${skip}:${limit}`,
+    LIST_PREFIX: 'products:list:*',
+    GET_LIST: (filters: any) => {
+      const sortedFilters = Object.keys(filters || {})
+        .sort()
+        .reduce((acc, key) => {
+          if (filters[key] !== undefined) acc[key] = filters[key];
+          return acc;
+        }, {} as any);
+      return `products:list:${JSON.stringify(sortedFilters)}`;
+    },
     DETAIL: (idOrSlug: string) => `product:detail:${idOrSlug}`,
   },
 
