@@ -58,7 +58,7 @@ export class AiService {
 
     const fallbackStr = this.configService.get<string>(
       'GEMINI_FALLBACK_MODELS',
-      'gemini-3.5-flash,gemini-3.1-flash-lite,gemini-2.0-flash,gemini-2.0-flash-lite',
+      '',
     );
     this.models = fallbackStr.split(',').map((m) => m.trim());
     this.temperature = parseFloat(
@@ -412,6 +412,11 @@ export class AiService {
         description: true,
         coverImage: true,
         isFeatured: true,
+        detail: {
+          select: {
+            contentDetail: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -427,6 +432,11 @@ export class AiService {
           description: true,
           coverImage: true,
           isFeatured: true,
+          detail: {
+            select: {
+              contentDetail: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -440,6 +450,9 @@ export class AiService {
         slug: pj.slug,
         coverImage: pj.coverImage,
         isFeatured: pj.isFeatured,
+        detailSummary: pj.detail?.contentDetail
+          ? pj.detail.contentDetail.replace(/<[^>]*>?/gm, '').substring(0, 400)
+          : null,
       })),
     };
   }

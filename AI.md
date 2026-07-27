@@ -228,9 +228,9 @@ Tất cả các tham số cấu hình, giới hạn và thông báo văn bản c
 
 - **`AI_HEADERS.CLIENT_KEY`**: `'x-app-client-key'`
 - **`AI_LIMITS.MAX_INPUT_LENGTH`**: `300` ký tự
-- **`AI_LIMITS.MAX_OUTPUT_TOKENS`**: `400` tokens (~250 từ)
+- **`AI_LIMITS.MAX_OUTPUT_TOKENS`**: `800` tokens (~400 từ - Tránh triệt để việc bị ngắt câu giữa chừng)
 - **`AI_LIMITS.DAILY_IP_LIMIT`**: `20` câu/ngày
-- **`AI_LIMITS.MINUTE_RATE_LIMIT`**: `10` req/phút (Đã nâng cấp)
+- **`AI_LIMITS.MINUTE_RATE_LIMIT`**: `10` req/phút
 - **`AI_LIMITS.REDIS_CACHE_TTL_SEC`**: `7200` (2 giờ cho Standalone Cache)
 - **`AI_LIMITS.REDIS_SESSION_TTL_SEC`**: `1800` (30 phút cho Session History)
 - **`AI_LIMITS.REDIS_TOOL_CACHE_TTL_SEC`**: `600` (10 phút cho Tool Cache)

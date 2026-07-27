@@ -4,9 +4,9 @@ export const AI_HEADERS = {
 
 export const AI_LIMITS = {
   MAX_INPUT_LENGTH: 300,
-  MAX_OUTPUT_TOKENS: 400,
+  MAX_OUTPUT_TOKENS: 800, // Tăng từ 400 lên 800 tokens (~400 từ) để AI không bao giờ bị cắt cụt giữa câu
   DAILY_IP_LIMIT: 20,
-  MINUTE_RATE_LIMIT: 10, // Đã tăng từ 5 lên 10 câu/phút
+  MINUTE_RATE_LIMIT: 10,
   MINUTE_RATE_TTL_MS: 60000,
   REDIS_CACHE_TTL_SEC: 7200, // 2 giờ cho câu trả lời hoàn chỉnh
   REDIS_SESSION_TTL_SEC: 1800, // 30 phút cho lịch sử phiên
