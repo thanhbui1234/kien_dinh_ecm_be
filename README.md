@@ -15,6 +15,7 @@ Tập trung vào tính ổn định, dễ dàng scale (kiến trúc Module), và
 | **Upstash Redis** | Serverless Caching cho các API nhiều traffic |
 | **JWT (Passport)** | Access Token + Refresh Token |
 | **Cloudinary** | Upload & quản lý ảnh |
+| **Google Gemini API** | Trợ lý AI Chatbot RAG (Function Calling) |
 | **Swagger** | Tự động sinh API docs tại `/api/docs` |
 | **Helmet** | HTTP security headers |
 | **class-validator** | Validation & serialization DTO |
@@ -273,3 +274,12 @@ pnpm run start:dev
 ```
 
 API docs có sẵn tại: `http://localhost:8080/api/docs`
+
+---
+
+## 13. Tài liệu Chuyên sâu (Documentation)
+
+- [AI Chatbot Module & Integration Guide](AI.md) - Hướng dẫn tích hợp AI Chatbot RAG, Bảo vệ 5 Lớp Anti-Spam và Mẫu Code cho Next.js Frontend.
+- [Redis Caching Guide](REDIS_CACHE.md) - Hướng dẫn Caching và nâng cao hiệu năng hệ thống.
+- [External Services Guide](EXTERNAL_SERVICES.md) - Hướng dẫn dịch vụ bên ngoài (Neon Postgres, Cloudinary, Upstash).
+
