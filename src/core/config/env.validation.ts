@@ -61,6 +61,20 @@ class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
   UPSTASH_REDIS_REST_TOKEN: string;
+
+  @IsString()
+  @IsNotEmpty()
+  GEMINI_API_KEY: string;
+
+  @IsString()
+  GEMINI_FALLBACK_MODELS: string;
+
+  @IsString()
+  GEMINI_TEMPERATURE: string;
+
+  @IsString()
+  @IsNotEmpty()
+  APP_CLIENT_SECRET: string;
 }
 
 /**

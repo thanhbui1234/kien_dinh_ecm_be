@@ -25,6 +25,9 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { AboutModule } from './modules/about/about.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { AiModule } from './modules/ai/ai.module';
+
 /**
  * Module gốc của ứng dụng NestJS.
  * Đăng ký các Interceptor, Filter và Guard sử dụng chung toàn hệ thống.
@@ -35,6 +38,12 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
       isGlobal: true,
       validate: validateConfig,
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
     ScheduleModule.forRoot(),
     PrismaModule,
     RedisModule,
@@ -50,10 +59,15 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     SettingsModule,
     DashboardModule,
     AboutModule,
+    AiModule,
   ],
   controllers: [],
   providers: [
     JwtStrategy,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

@@ -6,6 +6,10 @@
     },
     "Prisma": {
       "url": "https://mcp.prisma.io/mcp"
+    },
+    "gemini-api-docs-mcp": {
+      "type": "http",
+      "url": "https://gemini-api-docs-mcp.dev"
     }
   }
 }
