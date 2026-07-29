@@ -237,3 +237,17 @@ enum LeadPriority {
   MEDIUM
   LOW
 }
+
+model ContactSetting {
+  id           String   @id @default("singleton")
+  title        String   @default("Liên hệ với chúng tôi")
+  description  String   @default("Chúng tôi luôn sẵn sàng lắng nghe và giải đáp mọi thắc mắc của bạn về sản phẩm và dịch vụ. Hãy để lại thông tin, đội ngũ tư vấn sẽ liên hệ với bạn trong thời gian sớm nhất.")
+  hotline      String   @default("0374 864 110")
+  zalo         String   @default("0374 864 110")
+  email        String   @default("info@kiendinhecm.com")
+  address      String?
+  workingHours String?
+  updatedAt    DateTime @updatedAt
+}
+
+

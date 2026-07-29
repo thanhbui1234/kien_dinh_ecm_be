@@ -21,6 +21,11 @@ export const CACHE_KEYS = {
     BANNERS: 'system:banners',
   },
 
+  // --- CONTACT ---
+  CONTACT: {
+    SETTING: 'contact:setting',
+  },
+
   // --- CATEGORIES ---
   CATEGORIES: {
     FLAT: 'categories:flat',
