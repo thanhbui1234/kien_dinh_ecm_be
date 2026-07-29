@@ -84,8 +84,23 @@ export class AiService {
   /**
    * System Prompt nghiêm ngặt đóng vai trò Guardrails bảo mật và Đào tạo Toàn diện
    */
-  private getSystemInstruction(): string {
-    const contact = this.getCompanyContactInfo();
+  private async getSystemInstruction(): Promise<string> {
+    let contact = this.getCompanyContactInfo();
+
+    try {
+      const dbContact = await this.prisma.contactSetting.findUnique({
+        where: { id: 'singleton' },
+      });
+      if (dbContact) {
+        contact = {
+          ...contact,
+          SALES_PHONE: dbContact.hotline || contact.SALES_PHONE,
+          WARRANTY_PHONE: dbContact.hotline || contact.WARRANTY_PHONE,
+          EMAIL: dbContact.email || contact.EMAIL,
+        };
+      }
+    } catch (e) {}
+
     return AI_SYSTEM_PROMPT_TEMPLATE(contact);
   }
 
@@ -640,7 +655,7 @@ export class AiService {
             model: modelName,
             contents,
             config: {
-              systemInstruction: this.getSystemInstruction(),
+              systemInstruction: await this.getSystemInstruction(),
               temperature: this.temperature,
               maxOutputTokens: AI_LIMITS.MAX_OUTPUT_TOKENS,
               tools: [{ functionDeclarations: this.getToolDeclarations() }],

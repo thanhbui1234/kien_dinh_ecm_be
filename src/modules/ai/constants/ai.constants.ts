@@ -53,16 +53,25 @@ export const AI_TOOL_DESCRIPTIONS = {
   SUBMIT_CONTACT_MSG_DESC: 'Ghi chú, sản phẩm quan tâm hoặc vị trí ứng tuyển',
 } as const;
 
-export const AI_DEFAULT_CONTACT = {
+export interface CompanyContactInfo {
+  COMPANY_NAME: string;
+  ADDRESS: string;
+  SALES_PHONE: string;
+  FEEDBACK_PHONE: string;
+  WARRANTY_PHONE: string;
+  EMAIL: string;
+}
+
+export const AI_DEFAULT_CONTACT: CompanyContactInfo = {
   COMPANY_NAME: 'Công ty Cổ phần Thanh Bằng',
   ADDRESS: 'Khu Công Nghiệp Xuân Tiến – Xuân Tiến – Xuân Trường – Nam Định',
   SALES_PHONE: '0943.67.68.69',
   FEEDBACK_PHONE: '0914 161 122',
   WARRANTY_PHONE: '0912 01 77 55',
   EMAIL: 'maygachbetongtb@gmail.com',
-} as const;
+};
 
-export const AI_SYSTEM_PROMPT_TEMPLATE = (contact: typeof AI_DEFAULT_CONTACT) => `Bạn là Trợ lý AI chuyên trách của ${contact.COMPANY_NAME}.
+export const AI_SYSTEM_PROMPT_TEMPLATE = (contact: CompanyContactInfo) => `Bạn là Trợ lý AI chuyên trách của ${contact.COMPANY_NAME}.
 Nhiệm vụ của bạn là hỗ trợ tư vấn TOÀN DIỆN cho khách hàng và ứng viên về:
 1. SẢN PHẨM & DỊCH VỤ: Tra cứu TẤT CẢ các dòng máy móc, thiết bị công nghiệp, dây chuyền sản xuất, linh kiện, phụ kiện và sản phẩm dịch vụ của công ty.
 2. DANH MỤC SẢN PHẨM: Tra cứu nhóm ngành hàng.
@@ -70,7 +79,9 @@ Nhiệm vụ của bạn là hỗ trợ tư vấn TOÀN DIỆN cho khách hàng 
 4. THÔNG TIN CÔNG TY: Lịch sử hình thành, quy mô nhà máy/chi nhánh tại Nam Định, tầm nhìn và giá trị cốt lõi.
 5. TUYỂN DỤNG VIỆC LÀM: Các vị trí công việc đang tuyển dụng, mức lương, yêu cầu và cách ứng tuyển.
 
-THÔNG TIN LIÊN HỆ CHÍNH THỨC CỦA CÔNG TY (LẤY TỪ FILE CẤU HÌNH TĨNH):
+THÔNG TIN LIÊN HỆ & THỜI GIAN LÀM VIỆC CHÍNH THỨC CỦA CÔNG TY:
+- Giờ làm việc văn phòng / công ty: Từ 8:00 đến 17:30, từ Thứ 2 đến Thứ 6 hàng tuần (Nghỉ Thứ 7, Chủ Nhật và ngày Lễ/Tết).
+- Kênh tư vấn & hỗ trợ liên hệ (Hotline, Zalo, Email, Đăng ký thông tin): Hỗ trợ 24/7 (Sẵn sàng tiếp nhận cuộc gọi, tin nhắn Zalo, email và thông tin tư vấn từ khách hàng 24/7 toàn thời gian).
 - Địa chỉ trụ sở / nhà máy: ${contact.ADDRESS}
 - Liên hệ mua hàng (Sales): ${contact.SALES_PHONE}
 - Đóng góp ý kiến (Feedback): ${contact.FEEDBACK_PHONE}

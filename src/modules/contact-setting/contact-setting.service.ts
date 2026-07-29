@@ -12,6 +12,16 @@ export class ContactSettingService {
   ) {}
 
   /**
+   * Trích xuất đường dẫn URL src từ mã nhúng iframe (nếu người dùng dán cả thẻ <iframe ...>)
+   */
+  private extractMapUrl(input?: string): string | undefined {
+    if (!input) return undefined;
+    const trimmed = input.trim();
+    const match = trimmed.match(/src=["']([^"']+)["']/i);
+    return match ? match[1] : trimmed;
+  }
+
+  /**
    * Lấy cấu hình khối liên hệ (dạng singleton)
    */
   async getContactSetting() {
@@ -53,20 +63,26 @@ export class ContactSettingService {
    * Cập nhật cấu hình khối liên hệ (Admin)
    */
   async updateContactSetting(dto: UpdateContactSettingDto) {
+    const processedDto = { ...dto };
+    if (dto.mapUrl !== undefined) {
+      processedDto.mapUrl = this.extractMapUrl(dto.mapUrl);
+    }
+
     const setting = await this.prisma.contactSetting.upsert({
       where: { id: 'singleton' },
-      update: { ...dto },
+      update: { ...processedDto },
       create: {
         id: 'singleton',
-        title: dto.title ?? 'Liên hệ với chúng tôi',
+        title: processedDto.title ?? 'Liên hệ với chúng tôi',
         description:
-          dto.description ??
+          processedDto.description ??
           'Chúng tôi luôn sẵn sàng lắng nghe và giải đáp mọi thắc mắc của bạn về sản phẩm và dịch vụ. Hãy để lại thông tin, đội ngũ tư vấn sẽ liên hệ với bạn trong thời gian sớm nhất.',
-        hotline: dto.hotline ?? '0374 864 110',
-        zalo: dto.zalo ?? '0374 864 110',
-        email: dto.email ?? 'info@kiendinhecm.com',
-        address: dto.address,
-        workingHours: dto.workingHours,
+        hotline: processedDto.hotline ?? '0374 864 110',
+        zalo: processedDto.zalo ?? '0374 864 110',
+        email: processedDto.email ?? 'info@kiendinhecm.com',
+        address: processedDto.address,
+        workingHours: processedDto.workingHours,
+        mapUrl: processedDto.mapUrl,
       },
     });
 

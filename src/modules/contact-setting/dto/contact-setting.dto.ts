@@ -65,6 +65,15 @@ export class UpdateContactSettingDto {
   @IsOptional()
   @IsString()
   workingHours?: string;
+
+  @ApiProperty({
+    description: 'Đường dẫn URL nhúng bản đồ Google Maps (src URL hoặc mã <iframe ...>)',
+    example: 'https://www.google.com/maps/embed?pb=...',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  mapUrl?: string;
 }
 
 export class ContactSettingResponseDto {
@@ -111,6 +120,12 @@ export class ContactSettingResponseDto {
     required: false,
   })
   workingHours?: string;
+
+  @ApiProperty({
+    description: 'URL nhúng bản đồ Google Maps',
+    required: false,
+  })
+  mapUrl?: string;
 
   @ApiProperty({ description: 'Thời gian cập nhật' })
   updatedAt: Date;

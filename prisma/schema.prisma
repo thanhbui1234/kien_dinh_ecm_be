@@ -247,6 +247,7 @@ model ContactSetting {
   email        String   @default("info@kiendinhecm.com")
   address      String?
   workingHours String?
+  mapUrl       String?
   updatedAt    DateTime @updatedAt
 }
 
