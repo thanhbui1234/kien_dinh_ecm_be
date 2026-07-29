@@ -27,6 +27,11 @@ export const CACHE_KEYS = {
     SETTING: 'contact:setting',
   },
 
+  // --- FOOTER ---
+  FOOTER: {
+    SETTING: 'footer:setting',
+  },
+
   // --- CATEGORIES ---
   CATEGORIES: {
     FLAT: 'categories:flat',

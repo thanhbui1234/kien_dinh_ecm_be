@@ -25,6 +25,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { AboutModule } from './modules/about/about.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ContactSettingModule } from './modules/contact-setting/contact-setting.module';
+import { FooterSettingModule } from './modules/footer-setting/footer-setting.module';
 
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AiModule } from './modules/ai/ai.module';
@@ -62,6 +63,7 @@ import { AiModule } from './modules/ai/ai.module';
     AboutModule,
     AiModule,
     ContactSettingModule,
+    FooterSettingModule,
   ],
   controllers: [],
   providers: [

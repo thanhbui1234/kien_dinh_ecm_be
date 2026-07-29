@@ -266,4 +266,22 @@ model ContactSetting {
   updatedAt    DateTime @updatedAt
 }
 
+model FooterSetting {
+  id                   String   @id @default("singleton")
+  introText            String   @default("Công ty Cổ Phần Thanh Bằng tự hào là một trong những công ty uy tín nhất hiện nay và sẵn sàng cam kết với khách hàng về các vấn đề chất lượng, nguồn gốc xuất xứ của sản phẩm cũng như các dịch vụ đi kèm khác.")
+  facebookUrl          String?  @default("https://www.facebook.com/ThanhBangNamDinh")
+  youtubeUrl           String?  @default("https://www.youtube.com/@congtythanhbang1735")
+  instagramUrl         String?
+  phone                String?  @default("0943676869")
+  email                String?  @default("maygachbetongtb@gmail.com")
+  address              String?  @default("Công Ty Cổ Phần Thanh Bằng, Xuân Trường, Ninh Bình 420000, Việt Nam")
+  salesPhone           String?  @default("0943.67.68.69")
+  feedbackPhone        String?  @default("0914 161 122")
+  warrantyPhone        String?  @default("0912 01 77 55")
+  customerSupportTitle String?  @default("HỖ TRỢ KHÁCH HÀNG")
+  customerSupportLinks Json?
+  updatedAt            DateTime @updatedAt
+}
+
+
 
