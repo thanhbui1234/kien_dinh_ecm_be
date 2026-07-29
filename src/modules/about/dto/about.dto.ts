@@ -153,3 +153,84 @@ export class UpdateHistoryEventOrdersDto {
   @Type(() => UpdateHistoryEventOrderDto)
   events: UpdateHistoryEventOrderDto[];
 }
+
+// ─── Company Location ─────────────────────────────────────────────────────────
+
+export class CreateCompanyLocationDto {
+  @ApiProperty({ description: 'Tiêu đề vị trí', example: 'Vị trí nhà máy' })
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+
+  @ApiProperty({ description: 'Nhãn địa chỉ', example: 'ĐỊA CHỈ NHÀ MÁY' })
+  @IsString()
+  @IsNotEmpty()
+  addressLabel: string;
+
+  @ApiProperty({
+    description: 'Địa chỉ chi tiết',
+    example: 'Công Ty Cổ Phần Thanh Bằng, Xuân Trường, Ninh Bình 420000, Việt Nam',
+  })
+  @IsString()
+  @IsNotEmpty()
+  address: string;
+
+  @ApiProperty({
+    description: 'Đường dẫn liên kết chỉ đường Google Maps',
+    example: 'https://maps.google.com/?q=...',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  directionsUrl?: string;
+
+  @ApiProperty({
+    description: 'Đường dẫn URL nhúng bản đồ Google Maps (iframe src hoặc chuỗi HTML iframe)',
+    example: 'https://www.google.com/maps/embed?pb=...',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  mapUrl?: string;
+
+  @ApiProperty({ description: 'Thứ tự hiển thị', required: false, default: 0 })
+  @IsOptional()
+  @IsNumber()
+  orderIndex?: number;
+}
+
+export class UpdateCompanyLocationDto extends PartialType(CreateCompanyLocationDto) {}
+
+export class CompanyLocationResponseDto extends CreateCompanyLocationDto {
+  @ApiProperty({ description: 'ID' })
+  id: string;
+
+  @ApiProperty({ description: 'Thời gian tạo' })
+  createdAt: Date;
+
+  @ApiProperty({ description: 'Thời gian cập nhật' })
+  updatedAt: Date;
+}
+
+export class UpdateCompanyLocationOrderDto {
+  @ApiProperty({ description: 'ID của vị trí công ty' })
+  @IsString()
+  @IsNotEmpty()
+  id: string;
+
+  @ApiProperty({ description: 'Thứ tự mới' })
+  @IsNumber()
+  orderIndex: number;
+}
+
+export class UpdateCompanyLocationOrdersDto {
+  @ApiProperty({
+    type: [UpdateCompanyLocationOrderDto],
+    description: 'Danh sách vị trí với thứ tự mới',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateCompanyLocationOrderDto)
+  locations: UpdateCompanyLocationOrderDto[];
+}
+

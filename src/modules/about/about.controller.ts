@@ -22,6 +22,10 @@ import {
   UpdateCompanyHistoryEventDto,
   CompanyHistoryEventResponseDto,
   UpdateHistoryEventOrdersDto,
+  CreateCompanyLocationDto,
+  UpdateCompanyLocationDto,
+  CompanyLocationResponseDto,
+  UpdateCompanyLocationOrdersDto,
 } from './dto/about.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import {
@@ -211,4 +215,68 @@ export class AboutController {
   deleteHistoryEvent(@Param('id') id: string) {
     return this.aboutService.deleteHistoryEvent(id);
   }
+
+  // ─── Company Locations ───────────────────────────────────────────────────────
+
+  @ApiOperation({ summary: 'Lấy danh sách vị trí công ty / nhà máy' })
+  @ApiSuccessResponse({
+    model: CompanyLocationResponseDto,
+    isArray: true,
+    description: 'Lấy danh sách thành công',
+  })
+  @Public()
+  @Get('locations')
+  getCompanyLocations() {
+    return this.aboutService.getCompanyLocations();
+  }
+
+  @ApiOperation({ summary: 'Thêm vị trí công ty / nhà máy mới' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({
+    model: CompanyLocationResponseDto,
+    status: 201,
+    description: 'Thêm thành công',
+  })
+  @Post('locations')
+  createCompanyLocation(@Body() dto: CreateCompanyLocationDto) {
+    return this.aboutService.createCompanyLocation(dto);
+  }
+
+  @ApiOperation({ summary: 'Cập nhật thứ tự vị trí công ty hàng loạt' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({
+    model: CompanyLocationResponseDto,
+    isArray: true,
+    description: 'Cập nhật thứ tự thành công',
+  })
+  @Patch('locations/order')
+  updateCompanyLocationOrders(@Body() dto: UpdateCompanyLocationOrdersDto) {
+    return this.aboutService.updateCompanyLocationOrders(dto);
+  }
+
+  @ApiOperation({ summary: 'Cập nhật vị trí công ty / nhà máy' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({
+    model: CompanyLocationResponseDto,
+    description: 'Cập nhật thành công',
+  })
+  @Patch('locations/:id')
+  updateCompanyLocation(
+    @Param('id') id: string,
+    @Body() dto: UpdateCompanyLocationDto,
+  ) {
+    return this.aboutService.updateCompanyLocation(id, dto);
+  }
+
+  @ApiOperation({ summary: 'Xóa vị trí công ty / nhà máy' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({
+    model: CompanyLocationResponseDto,
+    description: 'Xóa thành công',
+  })
+  @Delete('locations/:id')
+  deleteCompanyLocation(@Param('id') id: string) {
+    return this.aboutService.deleteCompanyLocation(id);
+  }
 }
+

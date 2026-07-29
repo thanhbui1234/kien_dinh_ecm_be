@@ -12,6 +12,7 @@ export const CACHE_KEYS = {
     COMPANY_INFO: 'about:company_info',
     FACILITIES: 'about:facilities',
     HISTORY_EVENTS: 'about:history_events',
+    COMPANY_LOCATIONS: 'about:company_locations',
   },
 
   // --- SETTINGS ---
