@@ -187,6 +187,10 @@ export class AiService {
               type: Type.STRING,
               description: AI_TOOL_DESCRIPTIONS.SUBMIT_CONTACT_PHONE_DESC,
             },
+            email: {
+              type: Type.STRING,
+              description: AI_TOOL_DESCRIPTIONS.SUBMIT_CONTACT_EMAIL_DESC,
+            },
             message: {
               type: Type.STRING,
               description: AI_TOOL_DESCRIPTIONS.SUBMIT_CONTACT_MSG_DESC,
@@ -537,11 +541,12 @@ export class AiService {
    * Handler ghi nhận liên hệ / ứng tuyển
    */
   private async handleSubmitContactRequest(args: Record<string, any>): Promise<any> {
-    const { fullName, phoneNumber, message } = args;
+    const { fullName, phoneNumber, email, message } = args;
     const newLead = await this.prisma.contactRequest.create({
       data: {
         fullName,
         phoneNumber,
+        email: email || null,
         message: message || AI_MESSAGES.CONTACT_DEFAULT_MESSAGE,
         status: 'PENDING',
         priority: 'HIGH',

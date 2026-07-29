@@ -50,6 +50,7 @@ export const AI_TOOL_DESCRIPTIONS = {
     'Tạo một yêu cầu tư vấn / liên hệ / ứng tuyển mới từ khách hàng hoặc ứng viên khi họ để lại tên và số điện thoại.',
   SUBMIT_CONTACT_NAME_DESC: 'Họ và tên của khách hàng hoặc ứng viên',
   SUBMIT_CONTACT_PHONE_DESC: 'Số điện thoại liên hệ',
+  SUBMIT_CONTACT_EMAIL_DESC: 'Địa chỉ email liên hệ (nếu người dùng cung cấp)',
   SUBMIT_CONTACT_MSG_DESC: 'Ghi chú, sản phẩm quan tâm hoặc vị trí ứng tuyển',
 } as const;
 
