@@ -17,7 +17,7 @@ export class ProjectsService {
   ) {}
 
   async create(createProjectDto: CreateProjectDto) {
-    const { contentDetail, productIds, categoryIds, images, ...projectData } = createProjectDto;
+    const { contentDetail, productIds, categoryIds, images, videoUrls, ...projectData } = createProjectDto;
 
     if (!projectData.slug && projectData.name) {
       projectData.slug = generateSlug(projectData.name);
@@ -43,12 +43,13 @@ export class ProjectsService {
       slug: projectData.slug as string,
     };
 
-    const hasDetail = !!contentDetail || (images && images.length > 0);
+    const hasDetail = !!contentDetail || (images && images.length > 0) || (videoUrls && videoUrls.length > 0);
     if (hasDetail) {
       createData.detail = {
         create: {
           contentDetail: contentDetail ?? '',
           images: images ?? [],
+          videoUrls: videoUrls ?? [],
         },
       };
     }
@@ -188,6 +189,7 @@ export class ProjectsService {
       createdAt: project.createdAt,
       detail: project.detail ? { contentDetail: project.detail.contentDetail } : null,
       images: project.detail?.images ?? [],
+      videoUrls: project.detail?.videoUrls ?? [],
       productIds: project.products.map(p => p.productId),
       categoryIds: project.categories.map(c => c.categoryId),
       relatedProducts: project.products.map(p => p.product),
@@ -217,7 +219,7 @@ export class ProjectsService {
       });
     }
 
-    const { contentDetail, productIds, categoryIds, images, ...projectData } = updateProjectDto;
+    const { contentDetail, productIds, categoryIds, images, videoUrls, ...projectData } = updateProjectDto;
 
     if (projectData.slug) {
       const existingProject = await this.prisma.project.findFirst({
@@ -235,16 +237,18 @@ export class ProjectsService {
       ...projectData,
     };
 
-    if (contentDetail !== undefined || images !== undefined) {
+    if (contentDetail !== undefined || images !== undefined || videoUrls !== undefined) {
       updateData.detail = {
         upsert: {
           create: {
             contentDetail: contentDetail ?? '',
             images: images ?? [],
+            videoUrls: videoUrls ?? [],
           },
           update: {
             ...(contentDetail !== undefined && { contentDetail }),
             ...(images !== undefined && { images }),
+            ...(videoUrls !== undefined && { videoUrls }),
           },
         },
       };
