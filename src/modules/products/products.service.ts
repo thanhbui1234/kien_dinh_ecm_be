@@ -31,7 +31,7 @@ export class ProductsService {
   ) { }
 
   async create(createProductDto: CreateProductDto) {
-    const { contentDetail, specifications, features, images, parentId, categoryId, seoMeta, ...productData } = createProductDto;
+    const { contentDetail, specifications, features, images, parentId, categoryId, seoMeta, videoUrls, ...productData } = createProductDto;
 
     productData.slug = generateSlug(productData.name);
 
@@ -64,13 +64,14 @@ export class ProductsService {
       createData.parent = { connect: { id: parentId } };
     }
 
-    if (contentDetail !== undefined || specifications !== undefined || features !== undefined || seoMeta !== undefined) {
+    if (contentDetail !== undefined || specifications !== undefined || features !== undefined || seoMeta !== undefined || videoUrls !== undefined) {
       createData.detail = {
         create: {
           contentDetail: contentDetail || '',
           specifications: specifications || {},
           features: features || Prisma.JsonNull,
           seoMeta: seoMeta || Prisma.JsonNull,
+          videoUrls: videoUrls || [],
         },
       };
     }
@@ -330,7 +331,7 @@ export class ProductsService {
   }
 
   async update(id: string, updateProductDto: UpdateProductDto) {
-    const { contentDetail, specifications, features, images, parentId, categoryId, seoMeta, ...productData } = updateProductDto;
+    const { contentDetail, specifications, features, images, parentId, categoryId, seoMeta, videoUrls, ...productData } = updateProductDto;
 
     const product = await this.prisma.product.findUnique({
       where: { id },
@@ -414,12 +415,13 @@ export class ProductsService {
       }
     }
 
-    if (contentDetail !== undefined || specifications !== undefined || features !== undefined || seoMeta !== undefined) {
+    if (contentDetail !== undefined || specifications !== undefined || features !== undefined || seoMeta !== undefined || videoUrls !== undefined) {
       const detailUpdate = {
         contentDetail: contentDetail !== undefined ? contentDetail : product.detail?.contentDetail || '',
         specifications: specifications !== undefined ? specifications : product.detail?.specifications || {},
         features: features !== undefined ? features : product.detail?.features || Prisma.JsonNull,
         seoMeta: seoMeta !== undefined ? seoMeta : product.detail?.seoMeta || Prisma.JsonNull,
+        videoUrls: videoUrls !== undefined ? videoUrls : product.detail?.videoUrls || [],
       };
 
       updateData.detail = {

@@ -80,6 +80,12 @@ export class CreateProductDto {
   @IsOptional()
   seoMeta?: any;
 
+  @ApiPropertyOptional({ description: 'Danh sách đường dẫn Video / YouTube', type: [String], example: ['https://www.youtube.com/watch?v=abc'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  videoUrls?: string[];
+
   // --- Hình ảnh ---
   @ApiPropertyOptional({ type: [CreateProductImageDto], description: 'Danh sách hình ảnh' })
   @IsArray()

@@ -54,4 +54,10 @@ export class CreateProjectDto {
   @IsArray()
   @IsString({ each: true })
   images?: string[];
+
+  @ApiPropertyOptional({ description: 'Danh sách URL video / YouTube dự án', type: [String], example: ['https://www.youtube.com/watch?v=xyz'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  videoUrls?: string[];
 }
