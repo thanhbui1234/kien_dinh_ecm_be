@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
@@ -37,6 +38,74 @@ export class UsersService {
   }
 
   /**
+   * Khóa tài khoản và randomize mật khẩu
+   */
+  async lockUser(id: string, randomPasswordHash: string) {
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        isLocked: true,
+        password: randomPasswordHash,
+        refreshToken: null,
+      },
+    });
+  }
+
+  /**
+   * Mở khóa tài khoản và cài đặt mật khẩu mới
+   */
+  async unlockAndResetPassword(id: string, newPasswordHash: string) {
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        isLocked: false,
+        password: newPasswordHash,
+        refreshToken: null,
+      },
+    });
+  }
+
+  /**
+   * Lấy danh sách tất cả tài khoản
+   */
+  async findAll() {
+    return this.prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        isLocked: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Tạo tài khoản Admin mới
+   */
+  async createAdmin(email: string, passwordHash: string, fullName: string) {
+    return this.prisma.user.create({
+      data: {
+        email,
+        password: passwordHash,
+        fullName,
+        role: Role.ADMIN,
+      },
+    });
+  }
+
+  /**
+   * Xóa tài khoản
+   */
+  async deleteUser(id: string) {
+    return this.prisma.user.delete({
+      where: { id },
+    });
+  }
+
+  /**
    * Tạo hoặc cập nhật tài khoản Admin (Phục vụ API Setup)
    */
   async upsertAdmin(email: string, passwordHash: string, fullName: string) {
@@ -45,13 +114,13 @@ export class UsersService {
       update: {
         password: passwordHash,
         fullName,
-        role: 'SUPER_ADMIN',
+        role: Role.SUPER_ADMIN,
       },
       create: {
         email,
         password: passwordHash,
         fullName,
-        role: 'SUPER_ADMIN',
+        role: Role.SUPER_ADMIN,
       },
     });
   }
