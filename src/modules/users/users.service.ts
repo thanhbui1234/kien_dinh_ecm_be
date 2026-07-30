@@ -35,4 +35,24 @@ export class UsersService {
       data: { refreshToken: hashedToken },
     });
   }
+
+  /**
+   * Tạo hoặc cập nhật tài khoản Admin (Phục vụ API Setup)
+   */
+  async upsertAdmin(email: string, passwordHash: string, fullName: string) {
+    return this.prisma.user.upsert({
+      where: { email },
+      update: {
+        password: passwordHash,
+        fullName,
+        role: 'SUPER_ADMIN',
+      },
+      create: {
+        email,
+        password: passwordHash,
+        fullName,
+        role: 'SUPER_ADMIN',
+      },
+    });
+  }
 }

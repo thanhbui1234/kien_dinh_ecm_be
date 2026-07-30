@@ -2,6 +2,7 @@ import { Controller, Post, Body, Get } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { SetupAdminDto } from './dto/setup-admin.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
@@ -70,5 +71,20 @@ export class AuthController {
   @Get('me')
   async getProfile(@CurrentUser('userId') userId: string) {
     return this.authService.getMe(userId);
+  }
+
+  /**
+   * API ẩn để khởi tạo/cập nhật tài khoản Admin
+   */
+  @ApiOperation({
+    summary: 'Tạo tài khoản Admin (Ẩn)',
+    description: 'Dành cho khách hàng/Dev tạo admin ban đầu',
+  })
+  @ApiBody({ type: SetupAdminDto })
+  @ApiSuccessResponse({ model: Boolean, status: 201, description: 'Tạo thành công' })
+  @Public()
+  @Post('setup-admin')
+  async setupAdmin(@Body() setupAdminDto: SetupAdminDto) {
+    return this.authService.setupAdmin(setupAdminDto);
   }
 }

@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { HashUtil } from '../../common/utils/hash.util';
 import { LoginDto } from './dto/login.dto';
+import { SetupAdminDto } from './dto/setup-admin.dto';
 import { AppMessages } from '../../common/constants/messages.constant';
 import { ErrorCode } from '../../common/constants/error-codes.constant';
 
@@ -143,5 +144,31 @@ export class AuthService {
       });
     }
     return user;
+  }
+
+  /**
+   * Tạo tài khoản Admin (ẩn) dùng cho bàn giao hệ thống
+   */
+  async setupAdmin(setupAdminDto: SetupAdminDto) {
+    const { email, password, fullName, secretKey } = setupAdminDto;
+    
+    // Kiểm tra Secret Key
+    const expectedSecret = this.configService.get<string>('ADMIN_SETUP_SECRET');
+    if (!expectedSecret || secretKey !== expectedSecret) {
+      throw new UnauthorizedException({
+        message: 'Invalid Secret Key',
+        errorCode: ErrorCode.INVALID_CREDENTIALS,
+      });
+    }
+
+    // Mã hóa mật khẩu và tạo user
+    const passwordHash = await HashUtil.hash(password);
+    const finalName = fullName || 'Quản trị viên';
+    const user = await this.usersService.upsertAdmin(email, passwordHash, finalName);
+    
+    return {
+      message: 'Admin account created successfully',
+      email: user.email,
+    };
   }
 }
