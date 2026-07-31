@@ -6,12 +6,18 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
   password     String
   fullName     String
-  role         String   @default("EDITOR")
+  role         Role     @default(ADMIN)
+  isLocked     Boolean  @default(false)
   createdAt    DateTime @default(now())
   refreshToken String?
 }

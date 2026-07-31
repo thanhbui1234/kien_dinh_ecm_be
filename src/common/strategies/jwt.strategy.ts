@@ -20,7 +20,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; email: string; role: string }) {
+  /**
+   * Giải mã và kiểm tra thông tin User trong JWT Payload.
+   * 1. Xác minh tài khoản còn tồn tại trong DB không.
+   * 2. Kiểm tra cờ `isLocked` (Nêu tài khoản bị khóa do vi phạm 3 thiết bị -> Bắn lỗi ACCOUNT_LOCKED).
+   * 3. Trả về thông tin gắn vào `request.user` bao gồm `sessionId`.
+   */
+  async validate(payload: { sub: string; email: string; role: string; sessionId?: string }) {
     // Truy vấn CSDL để đảm bảo user vẫn còn tồn tại (chưa bị xoá hoặc khoá)
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
@@ -30,7 +36,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       });
     }
 
+    if (user.isLocked) {
+      throw new UnauthorizedException({
+        message: 'Tài khoản đã bị khóa do vi phạm 3 thiết bị! Vui lòng liên hệ Super Admin.',
+        errorCode: ErrorCode.ACCOUNT_LOCKED,
+      });
+    }
+
     // Trả về thông tin user (được nhét vào request.user)
-    return { userId: user.id, email: user.email, role: user.role };
+    return { userId: user.id, email: user.email, role: user.role, sessionId: payload.sessionId };
   }
 }

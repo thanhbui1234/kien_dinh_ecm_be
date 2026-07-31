@@ -1,7 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 import { UsersService } from '../users/users.service';
+import { RedisService } from '../../database/redis.service';
 import { HashUtil } from '../../common/utils/hash.util';
 import { LoginDto } from './dto/login.dto';
 import { SetupAdminDto } from './dto/setup-admin.dto';
@@ -14,13 +16,14 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
-   * Tạo cặp token: Access Token và Refresh Token
+   * Tạo cặp token: Access Token và Refresh Token (Gắn kèm sessionId)
    */
-  private async getTokens(userId: string, email: string, role: string) {
-    const payload = { sub: userId, email, role };
+  private async getTokens(userId: string, email: string, role: string, sessionId: string) {
+    const payload = { sub: userId, email, role, sessionId };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload),
@@ -38,16 +41,24 @@ export class AuthService {
   }
 
   /**
-   * Xác thực thông tin đăng nhập và trả về JWT token.
+   * Xác thực thông tin đăng nhập và trả về JWT token với quy trình Anti-Sharing 3 thiết bị
    */
   async login(loginDto: LoginDto) {
-    const { email, password } = loginDto;
+    const { email, password, deviceId, fingerprint } = loginDto;
 
     const user = await this.usersService.findByEmail(email);
     if (!user) {
       throw new UnauthorizedException({
         message: AppMessages.AUTH.USER_NOT_FOUND,
         errorCode: ErrorCode.USER_NOT_FOUND,
+      });
+    }
+
+    // 1. Kiểm tra tài khoản có đang bị khóa hay không
+    if (user.isLocked) {
+      throw new UnauthorizedException({
+        message: 'Tài khoản đã bị khóa do đăng nhập ở thiết bị thứ 3! Vui lòng liên hệ Super Admin.',
+        errorCode: ErrorCode.ACCOUNT_LOCKED,
       });
     }
 
@@ -59,7 +70,50 @@ export class AuthService {
       });
     }
 
-    const tokens = await this.getTokens(user.id, user.email, user.role);
+    // 2. Định danh thiết bị lai (Hybrid Device Fingerprinting)
+    const deviceKey = `user_devices:${user.id}`;
+    const rawDevices = await this.redisService.client.smembers(deviceKey);
+    const existingDevices = (rawDevices || []).map((d) => String(d));
+
+    const currentDevId = deviceId?.trim() || '';
+    const currentFp = fingerprint?.trim() || '';
+
+    // Kiểm tra xem thiết bị này đã từng đăng nhập trước đây chưa
+    const isKnownDevice = existingDevices.some((entry) => {
+      const [savedDevId, savedFp] = entry.split(':');
+      if (currentDevId && savedDevId && currentDevId === savedDevId) return true;
+      if (currentFp && savedFp && currentFp === savedFp) return true;
+      return false;
+    });
+
+    // 3. Nếu là thiết bị mới hoàn toàn -> Kiểm tra giới hạn 3 thiết bị
+    if (!isKnownDevice && (currentDevId || currentFp)) {
+      if (existingDevices.length >= 2) {
+        // Thiết bị thứ 3 xuất hiện -> TỰ ĐỘNG KHÓA TÀI KHOẢN & KICK SẠCH SESSION
+        const randomPassHash = await HashUtil.hash(randomUUID());
+        await this.usersService.lockUser(user.id, randomPassHash);
+        await this.redisService.client.del(`user_sessions:${user.id}`);
+
+        throw new UnauthorizedException({
+          message: 'Tài khoản vi phạm đăng nhập quá 3 thiết bị độc nhất và đã bị khóa tự động! Vui lòng liên hệ Super Admin.',
+          errorCode: ErrorCode.ACCOUNT_LOCKED,
+        });
+      }
+
+      // Lưu thiết bị mới vào danh sách
+      await this.redisService.client.sadd(
+        deviceKey,
+        `${currentDevId || 'none'}:${currentFp || 'none'}`,
+      );
+    }
+
+    // 4. Tạo sessionId cho phiên đăng nhập này
+    const sessionId = randomUUID();
+    await this.redisService.client.hset(`user_sessions:${user.id}`, {
+      [sessionId]: Date.now().toString(),
+    });
+
+    const tokens = await this.getTokens(user.id, user.email, user.role, sessionId);
     const hashedRefreshToken = await HashUtil.hash(tokens.refreshToken);
     await this.usersService.updateRefreshToken(user.id, hashedRefreshToken);
 
@@ -80,7 +134,7 @@ export class AuthService {
   async refreshTokens(refreshToken: string) {
     try {
       // Xác thực token có hợp lệ không
-      const payload = await this.jwtService.verifyAsync<{ sub: string }>(
+      const payload = await this.jwtService.verifyAsync<{ sub: string; sessionId?: string }>(
         refreshToken,
         {
           secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
@@ -96,6 +150,13 @@ export class AuthService {
         });
       }
 
+      if (user.isLocked) {
+        throw new UnauthorizedException({
+          message: 'Tài khoản đã bị khóa do vi phạm 3 thiết bị! Vui lòng liên hệ Super Admin.',
+          errorCode: 'ACCOUNT_LOCKED',
+        });
+      }
+
       // So khớp mã hash
       const isRefreshTokenMatching = await HashUtil.compare(
         refreshToken,
@@ -108,8 +169,13 @@ export class AuthService {
         });
       }
 
-      // Cấp cặp token mới
-      const tokens = await this.getTokens(user.id, user.email, user.role);
+      // Cấp cặp token mới với sessionId giữ nguyên hoặc tạo mới
+      const sessionId = payload.sessionId || randomUUID();
+      await this.redisService.client.hset(`user_sessions:${user.id}`, {
+        [sessionId]: Date.now().toString(),
+      });
+
+      const tokens = await this.getTokens(user.id, user.email, user.role, sessionId);
       const hashedRefreshToken = await HashUtil.hash(tokens.refreshToken);
       await this.usersService.updateRefreshToken(user.id, hashedRefreshToken);
 
@@ -127,6 +193,7 @@ export class AuthService {
    */
   async logout(userId: string) {
     await this.usersService.updateRefreshToken(userId, null);
+    await this.redisService.client.del(`user_sessions:${userId}`);
     return {
       message: AppMessages.AUTH.LOGOUT_SUCCESS,
     };

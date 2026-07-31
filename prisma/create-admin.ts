@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { neonConfig } from '@neondatabase/serverless';
 import { PrismaNeon } from '@prisma/adapter-neon';
@@ -11,9 +11,9 @@ const connectionString = process.env.DATABASE_URL;
 const adapter = new PrismaNeon({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
-const VALID_ROLES = ['SUPER_ADMIN', 'EDITOR'];
+const VALID_ROLES = ['SUPER_ADMIN', 'ADMIN'];
 
-function parseArgs(): { email: string; password: string; role: string; fullName: string } {
+function parseArgs(): { email: string; password: string; role: Role; fullName: string } {
   const args = process.argv.slice(2);
   const parsed: Record<string, string> = {};
 
@@ -24,12 +24,12 @@ function parseArgs(): { email: string; password: string; role: string; fullName:
 
   const email = parsed['email'];
   const password = parsed['password'];
-  const role = (parsed['role'] || 'EDITOR').toUpperCase();
+  const roleStr = (parsed['role'] || 'ADMIN').toUpperCase();
   const fullName = parsed['name'] || 'Admin User';
 
   if (!email || !password) {
     console.error('❌ Thiếu tham số bắt buộc.');
-    console.error('   Cách dùng: ts-node prisma/create-admin.ts --email=<email> --password=<password> [--role=EDITOR|SUPER_ADMIN] [--name=<fullName>]');
+    console.error('   Cách dùng: ts-node prisma/create-admin.ts --email=<email> --password=<password> [--role=ADMIN|SUPER_ADMIN] [--name=<fullName>]');
     process.exit(1);
   }
 
@@ -44,10 +44,12 @@ function parseArgs(): { email: string; password: string; role: string; fullName:
     process.exit(1);
   }
 
-  if (!VALID_ROLES.includes(role)) {
-    console.error(`❌ Role không hợp lệ: "${role}". Chỉ chấp nhận: ${VALID_ROLES.join(', ')}`);
+  if (!VALID_ROLES.includes(roleStr)) {
+    console.error(`❌ Role không hợp lệ: "${roleStr}". Chỉ chấp nhận: ${VALID_ROLES.join(', ')}`);
     process.exit(1);
   }
+
+  const role = roleStr as Role;
 
   return { email, password, role, fullName };
 }
