@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
+import { Controller, Post, Body, Get, Headers } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -26,8 +26,11 @@ export class AuthController {
   @ApiSuccessResponse({ model: TokenResponseDto, status: 201, description: 'Đăng nhập thành công' })
   @Public()
   @Post('login')
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(
+    @Body() loginDto: LoginDto,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    return this.authService.login(loginDto, userAgent);
   }
 
   /**

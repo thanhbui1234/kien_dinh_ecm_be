@@ -148,3 +148,26 @@ Khi 1 tài khoản bị khóa do vượt 3 thiết bị, Super Admin vào trang 
 - API: `PATCH /api/v1/users/:userId/reset-password`
 - Body: `{ "newPassword": "PasswordMoi123!@#" }`
 - **Kết quả:** Backend tự động xóa cờ `isLocked`, đổi pass mới, và **xóa sạch lịch sử 3 thiết bị cũ** trên Redis để User có thể dùng lại như mới.
+
+---
+
+## 📊 6. CẤU TRÚC DỮ LIỆU DANH SÁCH USER DÀNH CHO FE ADMIN
+
+API `GET /api/v1/users` trả về dữ liệu làm giàu từ DB và Redis:
+
+```ts
+export interface UserAdminItem {
+  id: string;
+  email: string;
+  fullName: string;
+  role: 'SUPER_ADMIN' | 'ADMIN';
+  isLocked: boolean;           // true = Bị khóa 3 thiết bị -> Bật nút Reset Pass
+  isOnline: boolean;           // true = Đang Online -> Render chấm xanh 🟢
+  deviceCount: number;         // Số thiết bị độc nhất đã tích lũy (VD: 2/3)
+  activeSessionsCount: number; // Số phiên đang ONLINE (Nếu > 0 -> Bật nút KICK)
+  lastActiveAt: string | null; // ISO Date lần cuối đăng nhập/hoạt động (VD: "2026-07-31T15:35:00.000Z")
+  devices: string[];           // Danh sách chuỗi "deviceId:fingerprint" đã dùng
+  createdAt: string;
+}
+```
+

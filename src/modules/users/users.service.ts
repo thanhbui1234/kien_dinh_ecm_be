@@ -50,10 +50,10 @@ export class UsersService {
   }
 
   /**
-   * Lấy danh sách tất cả tài khoản
+   * Lấy danh sách tất cả tài khoản hệ thống kèm thông tin Redis phong phú (Trạng thái Online, Lịch sử thiết bị, Session mới nhất)
    */
   async findAll() {
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       select: {
         id: true,
         email: true,
@@ -64,6 +64,60 @@ export class UsersService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const enrichedUsers = await Promise.all(
+      users.map(async (user) => {
+        let deviceCount = 0;
+        let activeSessionsCount = 0;
+        let isOnline = false;
+        let lastActiveAt: string | null = null;
+        let devices: string[] = [];
+
+        try {
+          const [devicesRaw, sessionsRaw] = await Promise.all([
+            this.redisService.client.smembers(`user_devices:${user.id}`),
+            this.redisService.client.hvals(`user_sessions:${user.id}`),
+          ]);
+
+          devices = (devicesRaw || []).map((d) => {
+            const str = String(d);
+            const parts = str.split(':');
+            if (parts.length >= 3) {
+              const devName = parts.slice(2).join(':');
+              const shortDevId = parts[0] !== 'none' ? parts[0].substring(0, 8) : 'FP';
+              return `${devName} [${shortDevId}]`;
+            }
+            return str;
+          });
+          deviceCount = devices.length;
+
+          const sessionTimestamps = (sessionsRaw || [])
+            .map((t) => Number(t))
+            .filter((t) => !isNaN(t) && t > 0);
+
+          activeSessionsCount = sessionTimestamps.length;
+          isOnline = activeSessionsCount > 0;
+
+          if (sessionTimestamps.length > 0) {
+            const maxTimestamp = Math.max(...sessionTimestamps);
+            lastActiveAt = new Date(maxTimestamp).toISOString();
+          }
+        } catch {
+          // Bỏ qua lỗi Redis nếu gặp sự cố tạm thời
+        }
+
+        return {
+          ...user,
+          isOnline,
+          deviceCount,
+          activeSessionsCount,
+          lastActiveAt,
+          devices,
+        };
+      }),
+    );
+
+    return enrichedUsers;
   }
 
   /**

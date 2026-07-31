@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { RedisService } from '../../database/redis.service';
 import { HashUtil } from '../../common/utils/hash.util';
+import { parseUserAgent } from '../../common/utils/user-agent.util';
 import { LoginDto } from './dto/login.dto';
 import { SetupAdminDto } from './dto/setup-admin.dto';
 import { AppMessages } from '../../common/constants/messages.constant';
@@ -43,7 +44,7 @@ export class AuthService {
   /**
    * Xác thực thông tin đăng nhập và trả về JWT token với quy trình Anti-Sharing 3 thiết bị
    */
-  async login(loginDto: LoginDto) {
+  async login(loginDto: LoginDto, userAgent?: string) {
     const { email, password, deviceId, fingerprint } = loginDto;
 
     const user = await this.usersService.findByEmail(email);
@@ -80,7 +81,9 @@ export class AuthService {
 
     // Kiểm tra xem thiết bị này đã từng đăng nhập trước đây chưa
     const isKnownDevice = existingDevices.some((entry) => {
-      const [savedDevId, savedFp] = entry.split(':');
+      const parts = entry.split(':');
+      const savedDevId = parts[0];
+      const savedFp = parts[1];
       if (currentDevId && savedDevId && currentDevId === savedDevId) return true;
       if (currentFp && savedFp && currentFp === savedFp) return true;
       return false;
@@ -100,10 +103,11 @@ export class AuthService {
         });
       }
 
-      // Lưu thiết bị mới vào danh sách
+      // Lưu thiết bị mới vào danh sách kèm tên HĐH & Trình duyệt
+      const deviceName = parseUserAgent(userAgent);
       await this.redisService.client.sadd(
         deviceKey,
-        `${currentDevId || 'none'}:${currentFp || 'none'}`,
+        `${currentDevId || 'none'}:${currentFp || 'none'}:${deviceName}`,
       );
     }
 
