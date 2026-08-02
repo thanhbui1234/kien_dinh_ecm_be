@@ -1,9 +1,17 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsEnum } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { PageOptionsDto } from '../../../common/dto/pagination.dto';
+import { Language } from '@prisma/client';
 
 export class GetProductsFilterDto extends PageOptionsDto {
+  @ApiPropertyOptional({ enum: Language, description: 'Ngôn ngữ hiển thị (VI | EN)', default: Language.VI })
+  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
+  @IsEnum(Language)
+  @IsOptional()
+  lang?: Language = Language.VI;
+
+
   @ApiPropertyOptional({ description: 'Tìm kiếm theo tên' })
   @IsString()
   @IsOptional()

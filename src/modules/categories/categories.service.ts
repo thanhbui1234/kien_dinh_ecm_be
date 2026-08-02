@@ -3,10 +3,11 @@ import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { UpsertCategoryTranslationDto } from '../../common/dto/upsert-translation.dto';
 import { AppMessages } from '../../common/constants/messages.constant';
 import { ErrorCode } from '../../common/constants/error-codes.constant';
 import { generateSlug } from '../../common/utils/string.util';
-import { Prisma } from '@prisma/client';
+import { Prisma, Language } from '@prisma/client';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 
 @Injectable()
@@ -20,7 +21,19 @@ export class CategoriesService {
     const { parentId, ...categoryData } = createCategoryDto;
 
     const slug = categoryData.slug?.trim() ? categoryData.slug.trim() : generateSlug(categoryData.name);
-    const data: any = { ...categoryData, slug };
+    const data: any = { 
+      ...categoryData, 
+      slug,
+      translations: {
+        create: [
+          {
+            lang: Language.VI,
+            name: categoryData.name,
+            slug,
+          },
+        ],
+      },
+    };
 
     if (parentId && parentId.trim() !== '') {
       const parent = await this.prisma.category.findUnique({
@@ -37,7 +50,10 @@ export class CategoriesService {
 
     let newCategory: Awaited<ReturnType<typeof this.prisma.category.create>>;
     try {
-      newCategory = await this.prisma.category.create({ data });
+      newCategory = await this.prisma.category.create({ 
+        data,
+        include: { translations: true },
+      });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -52,13 +68,16 @@ export class CategoriesService {
     }
 
     try {
-      await this.redis.client.del(CACHE_KEYS.CATEGORIES.FLAT);
+      const keys = await this.redis.client.keys('cache:categories:*');
+      if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) { }
     return newCategory;
   }
-  async findAll() {
+
+  async findAll(lang: Language = Language.VI) {
+    const cacheKey = `cache:categories:flat:${lang}`;
     try {
-      const cachedFlat = await this.redis.client.get<any[]>(CACHE_KEYS.CATEGORIES.FLAT);
+      const cachedFlat = await this.redis.client.get<any[]>(cacheKey);
       if (cachedFlat) {
         return cachedFlat;
       }
@@ -66,21 +85,39 @@ export class CategoriesService {
 
     const flatCategories = await this.prisma.category.findMany({
       orderBy: { orderIndex: 'asc' },
+      include: { translations: true },
+    });
+
+    const localized = flatCategories.map((cat) => {
+      const trans = cat.translations.find((t) => t.lang === lang) || cat.translations.find((t) => t.lang === Language.VI);
+      return {
+        ...cat,
+        name: trans?.name || cat.name,
+        slug: trans?.slug || cat.slug,
+        alternates: {
+          viSlug: cat.translations.find((t) => t.lang === Language.VI)?.slug || cat.slug,
+          enSlug: cat.translations.find((t) => t.lang === Language.EN)?.slug || null,
+        },
+      };
     });
 
     try {
-      await this.redis.client.set(CACHE_KEYS.CATEGORIES.FLAT, flatCategories, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
+      await this.redis.client.set(cacheKey, localized, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
     } catch (error) { }
 
-    return flatCategories;
+    return localized;
   }
 
-  async findOne(id: string) {
-    const category = await this.prisma.category.findUnique({
-      where: { id },
+  async findOne(idOrSlug: string, lang: Language = Language.VI) {
+    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
+    const category = await this.prisma.category.findFirst({
+      where: isUuid
+        ? { id: idOrSlug }
+        : { OR: [{ slug: idOrSlug }, { translations: { some: { slug: idOrSlug } } }] },
       include: {
-        parent: true,
-        subCategories: true,
+        parent: { include: { translations: true } },
+        subCategories: { include: { translations: true } },
+        translations: true,
       },
     });
 
@@ -90,7 +127,52 @@ export class CategoriesService {
         errorCode: 'CATEGORY_NOT_FOUND',
       });
     }
-    return category;
+
+    const trans = category.translations.find((t) => t.lang === lang) || category.translations.find((t) => t.lang === Language.VI);
+    return {
+      ...category,
+      name: trans?.name || category.name,
+      slug: trans?.slug || category.slug,
+      alternates: {
+        viSlug: category.translations.find((t) => t.lang === Language.VI)?.slug || category.slug,
+        enSlug: category.translations.find((t) => t.lang === Language.EN)?.slug || null,
+      },
+    };
+  }
+
+  async upsertTranslation(categoryId: string, dto: UpsertCategoryTranslationDto) {
+    const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
+    if (!category) {
+      throw new NotFoundException({
+        message: AppMessages.CATEGORY.NOT_FOUND,
+        errorCode: 'CATEGORY_NOT_FOUND',
+      });
+    }
+
+    const slug = dto.slug?.trim() ? dto.slug.trim() : generateSlug(dto.name);
+
+    const translation = await this.prisma.categoryTranslation.upsert({
+      where: {
+        categoryId_lang: { categoryId, lang: dto.lang },
+      },
+      update: {
+        name: dto.name,
+        slug,
+      },
+      create: {
+        categoryId,
+        lang: dto.lang,
+        name: dto.name,
+        slug,
+      },
+    });
+
+    try {
+      const keys = await this.redis.client.keys('cache:categories:*');
+      if (keys.length > 0) await this.redis.client.del(...keys);
+    } catch (e) { }
+
+    return translation;
   }
 
   async update(id: string, updateCategoryDto: UpdateCategoryDto) {
@@ -149,10 +231,22 @@ export class CategoriesService {
     const updatedCategory = await this.prisma.category.update({
       where: { id },
       data,
+      include: { translations: true },
     });
 
+    // Sync VI translation if name changed
+    if (categoryData.name) {
+      const slug = categoryData.slug || generateSlug(categoryData.name);
+      await this.prisma.categoryTranslation.upsert({
+        where: { categoryId_lang: { categoryId: id, lang: Language.VI } },
+        update: { name: categoryData.name, slug },
+        create: { categoryId: id, lang: Language.VI, name: categoryData.name, slug },
+      });
+    }
+
     try {
-      await this.redis.client.del(CACHE_KEYS.CATEGORIES.FLAT);
+      const keys = await this.redis.client.keys('cache:categories:*');
+      if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) { }
     return updatedCategory;
   }
@@ -180,8 +274,7 @@ export class CategoriesService {
         errorCode: 'CATEGORY_HAS_CHILDREN',
       });
     }
-    console.log('count product', category._count.products)
-    console.log('count projectMappings', category._count.projectMappings)
+
     if (category._count.products > 0 || category._count.projectMappings > 0) {
       throw new BadRequestException({
         message: AppMessages.CATEGORY.HAS_RELATIONS,
@@ -191,7 +284,8 @@ export class CategoriesService {
 
     await this.prisma.category.delete({ where: { id } });
     try {
-      await this.redis.client.del(CACHE_KEYS.CATEGORIES.FLAT);
+      const keys = await this.redis.client.keys('cache:categories:*');
+      if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) { }
 
     return { message: AppMessages.CATEGORY.DELETE_SUCCESS };

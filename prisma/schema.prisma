@@ -11,6 +11,11 @@ enum Role {
   ADMIN
 }
 
+enum Language {
+  VI
+  EN
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -23,45 +28,78 @@ model User {
 }
 
 model Category {
-  id              String            @id @default(uuid())
+  id              String                @id @default(uuid())
   name            String
-  slug            String            @unique
-  orderIndex      Int               @default(0)
-  status          Boolean           @default(true)
+  slug            String                @unique
+  orderIndex      Int                   @default(0)
+  status          Boolean               @default(true)
   parentId        String?
   imageUrl        String?
-  parent          Category?         @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: Restrict)
-  subCategories   Category[]        @relation("CategoryToCategory")
+  parent          Category?             @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: Restrict)
+  subCategories   Category[]            @relation("CategoryToCategory")
   products        Product[]
   projectMappings ProjectCategory[]
+  translations    CategoryTranslation[]
 
   @@index([parentId])
   @@index([orderIndex])
 }
 
+model CategoryTranslation {
+  id         String   @id @default(uuid())
+  categoryId String
+  lang       Language @default(VI)
+  name       String
+  slug       String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, lang])
+  @@unique([lang, slug])
+  @@index([lang, slug])
+}
+
 model Product {
-  id              String           @id @default(uuid())
+  id              String               @id @default(uuid())
   name            String
-  slug            String           @unique
+  slug            String               @unique
   price           Float?
   thumbnailUrl    String
-  isFeatured      Boolean          @default(false)
-  status          Boolean          @default(true)
+  isFeatured      Boolean              @default(false)
+  status          Boolean              @default(true)
   categoryId      String
-  createdAt       DateTime         @default(now())
+  createdAt       DateTime             @default(now())
   parentId        String?
-  viewCount       Int              @default(0)
+  viewCount       Int                  @default(0)
   contactRequests ContactRequest[]
-  category        Category         @relation(fields: [categoryId], references: [id])
-  parent          Product?         @relation("ProductVariants", fields: [parentId], references: [id], onDelete: Restrict)
-  variants        Product[]        @relation("ProductVariants")
+  category        Category             @relation(fields: [categoryId], references: [id])
+  parent          Product?             @relation("ProductVariants", fields: [parentId], references: [id], onDelete: Restrict)
+  variants        Product[]            @relation("ProductVariants")
   detail          ProductDetail?
   images          ProductImage[]
   projectMappings ProjectProduct[]
+  translations    ProductTranslation[]
 
   @@index([name])
   @@index([categoryId, status])
   @@index([isFeatured, status])
+}
+
+model ProductTranslation {
+  id             String   @id @default(uuid())
+  productId      String
+  lang           Language @default(VI)
+  name           String
+  slug           String
+  contentDetail  String?  @db.Text
+  specifications Json?
+  features       Json?
+  seoTitle       String?
+  seoDescription String?
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, lang])
+  @@unique([lang, slug])
+  @@index([lang, slug])
 }
 
 model ProductDetail {
@@ -86,20 +124,36 @@ model ProductImage {
 }
 
 model Project {
-  id          String            @id @default(uuid())
+  id          String               @id @default(uuid())
   name        String
-  slug        String            @unique
-  description String            @db.VarChar(500)
+  slug        String               @unique
+  description String               @db.VarChar(500)
   coverImage  String
-  status      Boolean           @default(true)
-  createdAt   DateTime          @default(now())
-  isFeatured  Boolean           @default(false)
+  status      Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  isFeatured  Boolean              @default(false)
   categories  ProjectCategory[]
   detail      ProjectDetail?
   products    ProjectProduct[]
+  translations ProjectTranslation[]
 
   @@index([status, createdAt(sort: Desc)])
   @@index([isFeatured, status])
+}
+
+model ProjectTranslation {
+  id            String   @id @default(uuid())
+  projectId     String
+  lang          Language @default(VI)
+  name          String
+  slug          String
+  description   String   @db.VarChar(500)
+  contentDetail String?  @db.Text
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, lang])
+  @@unique([lang, slug])
+  @@index([lang, slug])
 }
 
 model ProjectDetail {
@@ -147,16 +201,32 @@ model ContactRequest {
 }
 
 model JobPost {
-  id              String           @id @default(uuid())
+  id              String               @id @default(uuid())
   title           String
-  slug            String           @unique
-  salary          String           @default("Cạnh tranh")
-  status          Boolean          @default(true)
-  createdAt       DateTime         @default(now())
+  slug            String               @unique
+  salary          String               @default("Cạnh tranh")
+  status          Boolean              @default(true)
+  createdAt       DateTime             @default(now())
   detail          JobPostDetail?
   contactRequests ContactRequest[]
+  translations    JobPostTranslation[]
 
   @@index([status, createdAt(sort: Desc)])
+}
+
+model JobPostTranslation {
+  id       String   @id @default(uuid())
+  jobId    String
+  lang     Language @default(VI)
+  title    String
+  slug     String
+  salary   String   @default("Cạnh tranh")
+  sections Json?
+  job      JobPost  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, lang])
+  @@unique([lang, slug])
+  @@index([lang, slug])
 }
 
 model JobPostDetail {

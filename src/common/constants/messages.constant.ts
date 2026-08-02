@@ -57,4 +57,11 @@ export const AppMessages = {
     PARENT_NOT_FOUND: 'Sản phẩm cha không tồn tại.',
     CIRCULAR_PARENT: 'Sản phẩm không thể làm cha của chính nó.',
   },
+
+  // Translation i18n Messages
+  TRANSLATION: {
+    UPSERT_SUCCESS: 'Lưu bản dịch thành công.',
+    NOT_FOUND: 'Không tìm thấy bản dịch cho ngôn ngữ yêu cầu.',
+    INVALID_LANGUAGE: 'Ngôn ngữ không được hỗ trợ. Chỉ chấp nhận VI hoặc EN.',
+  },
 };

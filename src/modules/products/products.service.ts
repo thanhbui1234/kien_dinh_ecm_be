@@ -5,10 +5,11 @@ import { RedisService } from '../../database/redis.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { GetProductsFilterDto } from './dto/get-products-filter.dto';
+import { UpsertProductTranslationDto } from '../../common/dto/upsert-translation.dto';
 import { AppMessages } from '../../common/constants/messages.constant';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, Language } from '@prisma/client';
 import { generateSlug } from '../../common/utils/string.util';
 
 function isSlugConflict(error: unknown): boolean {
@@ -58,6 +59,20 @@ export class ProductsService {
       ...productData,
       slug: productData.slug as string,
       category: { connect: { id: categoryId } },
+      translations: {
+        create: [
+          {
+            lang: Language.VI,
+            name: productData.name,
+            slug: productData.slug as string,
+            contentDetail: contentDetail || '',
+            specifications: specifications || {},
+            features: features || Prisma.JsonNull,
+            seoTitle: productData.name,
+            seoDescription: productData.name,
+          },
+        ],
+      },
     };
 
     if (parentId) {
@@ -91,6 +106,7 @@ export class ProductsService {
           images: true,
           category: true,
           parent: true,
+          translations: true,
         },
       });
     } catch (error) {
@@ -104,7 +120,7 @@ export class ProductsService {
     }
 
     try {
-      const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.LIST_PREFIX);
+      const keys = await this.redis.client.keys('cache:product*');
       if (keys.length > 0) {
         await this.redis.client.del(...keys);
       }
@@ -119,6 +135,7 @@ export class ProductsService {
       include: {
         detail: true,
         images: true,
+        translations: true,
       },
     });
 
@@ -140,6 +157,20 @@ export class ProductsService {
       isFeatured: false,
       status: false,
       category: { connect: { id: product.categoryId } },
+      translations: {
+        create: [
+          {
+            lang: Language.VI,
+            name: newName,
+            slug: generatedSlug,
+            contentDetail: product.detail?.contentDetail || '',
+            specifications: product.detail?.specifications || {},
+            features: product.detail?.features || Prisma.JsonNull,
+            seoTitle: newName,
+            seoDescription: newName,
+          },
+        ],
+      },
     };
 
     if (product.parentId) {
@@ -176,6 +207,7 @@ export class ProductsService {
           images: true,
           category: true,
           parent: true,
+          translations: true,
         },
       });
     } catch (error) {
@@ -189,7 +221,7 @@ export class ProductsService {
     }
 
     try {
-      const keys = await this.redis.client.keys(CACHE_KEYS.PRODUCTS.LIST_PREFIX);
+      const keys = await this.redis.client.keys('cache:product*');
       if (keys.length > 0) {
         await this.redis.client.del(...keys);
       }
@@ -199,12 +231,15 @@ export class ProductsService {
   }
 
   async findAll(filterDto: GetProductsFilterDto) {
-    const { search, categoryId, status, isFeatured, sortBy, skip, limit } = filterDto;
+    const { search, categoryId, status, isFeatured, sortBy, skip, limit, lang = Language.VI } = filterDto;
 
     const where: Prisma.ProductWhereInput = {};
 
     if (search) {
-      where.name = { contains: search, mode: 'insensitive' };
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { translations: { some: { name: { contains: search, mode: 'insensitive' } } } },
+      ];
     }
     if (categoryId) {
       where.categoryId = categoryId;
@@ -216,7 +251,7 @@ export class ProductsService {
       where.isFeatured = isFeatured === 'true' as any ? true : (isFeatured === 'false' as any ? false : isFeatured);
     }
 
-    const cacheKey = CACHE_KEYS.PRODUCTS.GET_LIST(filterDto);
+    const cacheKey = `cache:products:list:${lang}:${JSON.stringify(filterDto)}`;
 
     try {
       const cached = await this.redis.client.get(cacheKey);
@@ -237,19 +272,41 @@ export class ProductsService {
       orderBy = { viewCount: 'desc' };
     }
 
-    const [items, totalItems] = await this.prisma.$transaction([
+    const [rawItems, totalItems] = await this.prisma.$transaction([
       this.prisma.product.findMany({
         where,
         skip,
         take: limit,
         orderBy,
         include: {
-          category: { select: { id: true, name: true, slug: true } },
-          variants: { select: { id: true, name: true, slug: true, price: true } }
+          translations: true,
+          category: { include: { translations: true } },
+          variants: { include: { translations: true } }
         },
       }),
       this.prisma.product.count({ where }),
     ]);
+
+    const targetLang = (lang ? (lang as string).toUpperCase() : Language.VI) as Language;
+    const items = rawItems.map((prod) => {
+      const trans = prod.translations.find((t) => t.lang === targetLang) || prod.translations.find((t) => t.lang === Language.VI);
+      const catTrans = prod.category?.translations.find((t) => t.lang === targetLang) || prod.category?.translations.find((t) => t.lang === Language.VI);
+
+      return {
+        ...prod,
+        name: trans?.name || prod.name,
+        slug: trans?.slug || prod.slug,
+        category: prod.category ? {
+          id: prod.category.id,
+          name: catTrans?.name || prod.category.name,
+          slug: catTrans?.slug || prod.category.slug,
+        } : null,
+        alternates: {
+          viSlug: prod.translations.find((t) => t.lang === Language.VI)?.slug || prod.slug,
+          enSlug: prod.translations.find((t) => t.lang === Language.EN)?.slug || null,
+        },
+      };
+    });
 
     const pageMetaDto = new PageMetaDto(totalItems, filterDto, items.length);
     const result = new PageDto(items, pageMetaDto);
@@ -261,25 +318,32 @@ export class ProductsService {
     return result;
   }
 
-  async findOne(idOrSlug: string) {
+  async findOne(idOrSlug: string, lang: Language = Language.VI) {
     const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
-    const cacheKey = CACHE_KEYS.PRODUCTS.DETAIL(idOrSlug);
+    const cacheKey = `cache:product:detail:${lang}:${idOrSlug}`;
+
+    this.logger.log(`[findOne] idOrSlug=${idOrSlug} | lang=${lang} | cacheKey=${cacheKey}`);
 
     try {
       const cached = await this.redis.client.get(cacheKey);
       if (cached) {
+        this.logger.log(`[findOne] CACHE HIT: ${cacheKey}`);
         return cached;
       }
+      this.logger.log(`[findOne] CACHE MISS: ${cacheKey}`);
     } catch (error) { }
 
     const product = await this.prisma.product.findFirst({
-      where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
+      where: isUuid
+        ? { id: idOrSlug }
+        : { OR: [{ slug: idOrSlug }, { translations: { some: { slug: idOrSlug } } }] },
       include: {
         detail: true,
         images: { orderBy: { orderIndex: 'asc' } },
-        category: true,
-        variants: true,
-        parent: { select: { id: true, name: true, slug: true } }
+        category: { include: { translations: true } },
+        variants: { include: { translations: true } },
+        parent: { select: { id: true, name: true, slug: true } },
+        translations: true,
       },
     });
 
@@ -290,15 +354,91 @@ export class ProductsService {
       });
     }
 
+    const targetLang = (lang ? (lang as string).toUpperCase() : Language.VI) as Language;
+    const trans = product.translations.find((t) => t.lang === targetLang) || product.translations.find((t) => t.lang === Language.VI);
+    const catTrans = product.category?.translations.find((t) => t.lang === targetLang) || product.category?.translations.find((t) => t.lang === Language.VI);
+
+    this.logger.log(
+      `[findOne] product.id=${product.id} | targetLang=${targetLang} | ` +
+      `translations available=[${product.translations.map((t) => t.lang).join(', ')}] | ` +
+      `matched trans lang=${trans?.lang ?? 'NONE (fallback VI)'}`
+    );
+
+    const localizedProduct = {
+      ...product,
+      name: trans?.name || product.name,
+      slug: trans?.slug || product.slug,
+      detail: {
+        ...product.detail,
+        contentDetail: trans?.contentDetail || product.detail?.contentDetail || '',
+        specifications: trans?.specifications || product.detail?.specifications || {},
+        features: trans?.features || product.detail?.features || {},
+        seoTitle: trans?.seoTitle || product.name,
+        seoDescription: trans?.seoDescription || product.name,
+      },
+      category: product.category ? {
+        ...product.category,
+        name: catTrans?.name || product.category.name,
+        slug: catTrans?.slug || product.category.slug,
+      } : null,
+      alternates: {
+        viSlug: product.translations.find((t) => t.lang === Language.VI)?.slug || product.slug,
+        enSlug: product.translations.find((t) => t.lang === Language.EN)?.slug || null,
+      },
+    };
+
     try {
-      await this.redis.client.set(CACHE_KEYS.PRODUCTS.DETAIL(idOrSlug), product, { ex: CACHE_TTL.TWELVE_HOURS });
-      const otherKey = isUuid ? product.slug : product.id;
-      if (otherKey) {
-        await this.redis.client.set(CACHE_KEYS.PRODUCTS.DETAIL(otherKey), product, { ex: CACHE_TTL.TWELVE_HOURS });
+      await this.redis.client.set(cacheKey, localizedProduct, { ex: CACHE_TTL.TWELVE_HOURS });
+    } catch (error) { }
+
+    return localizedProduct;
+  }
+
+  async upsertTranslation(productId: string, dto: UpsertProductTranslationDto) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) {
+      throw new NotFoundException({
+        message: AppMessages.PRODUCT.NOT_FOUND,
+        errorCode: 'PRODUCT_NOT_FOUND',
+      });
+    }
+
+    const slug = dto.slug?.trim() ? dto.slug.trim() : generateSlug(dto.name);
+
+    const translation = await this.prisma.productTranslation.upsert({
+      where: {
+        productId_lang: { productId, lang: dto.lang },
+      },
+      update: {
+        name: dto.name,
+        slug,
+        contentDetail: dto.contentDetail !== undefined ? dto.contentDetail : undefined,
+        specifications: dto.specifications !== undefined ? dto.specifications : undefined,
+        features: dto.features !== undefined ? dto.features : undefined,
+        seoTitle: dto.seoTitle !== undefined ? dto.seoTitle : dto.name,
+        seoDescription: dto.seoDescription !== undefined ? dto.seoDescription : dto.name,
+      },
+      create: {
+        productId,
+        lang: dto.lang,
+        name: dto.name,
+        slug,
+        contentDetail: dto.contentDetail || '',
+        specifications: dto.specifications || {},
+        features: dto.features || Prisma.JsonNull,
+        seoTitle: dto.seoTitle || dto.name,
+        seoDescription: dto.seoDescription || dto.name,
+      },
+    });
+
+    try {
+      const keys = await this.redis.client.keys('cache:product*');
+      if (keys.length > 0) {
+        await this.redis.client.del(...keys);
       }
     } catch (error) { }
 
-    return product;
+    return translation;
   }
 
   async findRelated(id: string, limit: number = 5) {

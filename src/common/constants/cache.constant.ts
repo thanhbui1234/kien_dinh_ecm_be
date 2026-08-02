@@ -8,77 +8,79 @@ export const CACHE_TTL = {
 export const CACHE_KEYS = {
   // --- ABOUT ---
   ABOUT: {
-    COMPANY_PROFILE: 'about:company_profile',
-    COMPANY_INFO: 'about:company_info',
-    FACILITIES: 'about:facilities',
-    HISTORY_EVENTS: 'about:history_events',
-    COMPANY_LOCATIONS: 'about:company_locations',
+    COMPANY_PROFILE: 'cache:about:company_profile',
+    COMPANY_INFO: 'cache:about:company_info',
+    FACILITIES: 'cache:about:facilities',
+    HISTORY_EVENTS: 'cache:about:history_events',
+    COMPANY_LOCATIONS: 'cache:about:company_locations',
   },
 
   // --- SETTINGS ---
   SETTINGS: {
-    SYSTEM: 'system:settings',
-    COMPANY_SLOGANS: 'system:company_slogans',
-    BANNERS: 'system:banners',
+    SYSTEM: 'cache:system:settings',
+    COMPANY_SLOGANS: 'cache:system:company_slogans',
+    BANNERS: 'cache:system:banners',
   },
 
   // --- CONTACT ---
   CONTACT: {
-    SETTING: 'contact:setting',
+    SETTING: 'cache:contact:setting',
   },
 
   // --- FOOTER ---
   FOOTER: {
-    SETTING: 'footer:setting',
+    SETTING: 'cache:footer:setting',
   },
 
   // --- CATEGORIES ---
   CATEGORIES: {
-    FLAT: 'categories:flat',
+    LIST_PREFIX: 'cache:categories:*',
+    FLAT: (lang: string = 'VI') => `cache:categories:flat:${lang}`,
+    DETAIL: (idOrSlug: string, lang: string = 'VI') => `cache:category:detail:${lang}:${idOrSlug}`,
   },
 
   // --- PRODUCTS ---
   PRODUCTS: {
-    LIST_PREFIX: 'products:list:*',
-    GET_LIST: (filters: any) => {
+    LIST_PREFIX: 'cache:product*',
+    GET_LIST: (filters: any, lang: string = 'VI') => {
       const sortedFilters = Object.keys(filters || {})
         .sort()
         .reduce((acc, key) => {
           if (filters[key] !== undefined) acc[key] = filters[key];
           return acc;
         }, {} as any);
-      return `products:list:${JSON.stringify(sortedFilters)}`;
+      return `cache:products:list:${lang}:${JSON.stringify(sortedFilters)}`;
     },
-    DETAIL: (idOrSlug: string) => `product:detail:${idOrSlug}`,
+    DETAIL: (idOrSlug: string, lang: string = 'VI') => `cache:product:detail:${lang}:${idOrSlug}`,
   },
 
   // --- PROJECTS ---
   PROJECTS: {
-    LIST_PREFIX: 'projects:list:*',
-    GET_LIST: (filters: any) => {
+    LIST_PREFIX: 'cache:project*',
+    GET_LIST: (filters: any, lang: string = 'VI') => {
       const sortedFilters = Object.keys(filters || {})
         .sort()
         .reduce((acc, key) => {
           if (filters[key] !== undefined) acc[key] = filters[key];
           return acc;
         }, {} as any);
-      return `projects:list:${JSON.stringify(sortedFilters)}`;
+      return `cache:projects:list:${lang}:${JSON.stringify(sortedFilters)}`;
     },
-    DETAIL: (id: string) => `project:detail:${id}`,
+    DETAIL: (idOrSlug: string, lang: string = 'VI') => `cache:project:detail:${lang}:${idOrSlug}`,
   },
 
   // --- JOBS ---
   JOBS: {
-    LIST_PREFIX: 'jobs:list:*',
-    GET_LIST: (filters: any) => {
+    LIST_PREFIX: 'cache:job*',
+    GET_LIST: (filters: any, lang: string = 'VI') => {
       const sortedFilters = Object.keys(filters || {})
         .sort()
         .reduce((acc, key) => {
           if (filters[key] !== undefined) acc[key] = filters[key];
           return acc;
         }, {} as any);
-      return `jobs:list:${JSON.stringify(sortedFilters)}`;
+      return `cache:jobs:list:${lang}:${JSON.stringify(sortedFilters)}`;
     },
-    DETAIL: (idOrSlug: string) => `job:detail:${idOrSlug}`,
+    DETAIL: (idOrSlug: string, lang: string = 'VI') => `cache:job:detail:${lang}:${idOrSlug}`,
   },
 };

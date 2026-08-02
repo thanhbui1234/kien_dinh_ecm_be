@@ -3,10 +3,12 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { GetProductsFilterDto } from './dto/get-products-filter.dto';
+import { UpsertProductTranslationDto } from '../../common/dto/upsert-translation.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { ApiSuccessResponse, ApiStandardErrors } from '../../common/decorators/api-success-response.decorator';
 import { ProductResponseDto } from './dto/product-response.dto';
+import { Language } from '@prisma/client';
 
 @ApiTags('Products')
 @ApiStandardErrors()
@@ -35,16 +37,23 @@ export class ProductsController {
   @Public()
   @Get()
   findAll(@Query() filterDto: GetProductsFilterDto) {
-    console.log("data")
     return this.productsService.findAll(filterDto);
   }
 
-  @ApiOperation({ summary: 'Lấy chi tiết sản phẩm' })
+  @ApiOperation({ summary: 'Lấy chi tiết sản phẩm (theo ID hoặc Slug, hỗ trợ đa ngôn ngữ)' })
+  @ApiQuery({ name: 'lang', enum: Language, required: false, description: 'Ngôn ngữ hiển thị (VI | EN)' })
   @ApiSuccessResponse({ model: ProductResponseDto, description: 'Lấy chi tiết sản phẩm thành công' })
   @Public()
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
+  findOne(@Param('id') id: string, @Query('lang') lang?: Language) {
+    return this.productsService.findOne(id, lang || Language.VI);
+  }
+
+  @ApiOperation({ summary: 'Thêm/Cập nhật bản dịch sản phẩm cho ngôn ngữ chỉ định' })
+  @ApiBearerAuth('JWT-auth')
+  @Post(':id/translation')
+  upsertTranslation(@Param('id') id: string, @Body() dto: UpsertProductTranslationDto) {
+    return this.productsService.upsertTranslation(id, dto);
   }
 
   @ApiOperation({ summary: 'Lấy danh sách sản phẩm liên quan (cùng danh mục)' })

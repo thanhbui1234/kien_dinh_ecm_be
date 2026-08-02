@@ -4,9 +4,10 @@ import { RedisService } from '../../database/redis.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { GetProjectsFilterDto } from './dto/get-projects-filter.dto';
+import { UpsertProjectTranslationDto } from '../../common/dto/upsert-translation.dto';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, Language } from '@prisma/client';
 import { generateSlug } from '../../common/utils/string.util';
 
 @Injectable()
@@ -41,6 +42,17 @@ export class ProjectsService {
     const createData: Prisma.ProjectCreateInput = {
       ...projectData,
       slug: projectData.slug as string,
+      translations: {
+        create: [
+          {
+            lang: Language.VI,
+            name: projectData.name,
+            slug: projectData.slug as string,
+            description: projectData.description || '',
+            contentDetail: contentDetail || '',
+          },
+        ],
+      },
     };
 
     const hasDetail = !!contentDetail || (images && images.length > 0) || (videoUrls && videoUrls.length > 0);
@@ -76,26 +88,30 @@ export class ProjectsService {
         detail: true,
         products: true,
         categories: true,
+        translations: true,
       },
     });
 
     try { 
-      const keys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.LIST_PREFIX);
+      const keys = await this.redis.client.keys('cache:project*');
       if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) {}
 
     return result;
   }
 
-  async findAll(filterDto: GetProjectsFilterDto) {
-    const { search, status, isFeatured } = filterDto;
+  async findAll(filterDto: GetProjectsFilterDto & { lang?: Language }) {
+    const { search, status, isFeatured, lang = Language.VI } = filterDto;
     const skip = filterDto.skip;
     const limit = filterDto.limit ?? 10;
 
     const where: Prisma.ProjectWhereInput = {};
 
     if (search) {
-      where.name = { contains: search, mode: 'insensitive' };
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { translations: { some: { name: { contains: search, mode: 'insensitive' } } } },
+      ];
     }
 
     if (status !== undefined) {
@@ -106,7 +122,7 @@ export class ProjectsService {
       where.isFeatured = isFeatured === 'true' as any ? true : (isFeatured === 'false' as any ? false : isFeatured);
     }
 
-    const cacheKey = CACHE_KEYS.PROJECTS.GET_LIST(filterDto);
+    const cacheKey = `cache:projects:list:${lang}:${JSON.stringify(filterDto)}`;
 
     try {
       const cached = await this.redis.client.get(cacheKey);
@@ -115,16 +131,30 @@ export class ProjectsService {
       }
     } catch (e) {}
 
-    const [projects, total] = await this.prisma.$transaction([
+    const [rawProjects, total] = await this.prisma.$transaction([
       this.prisma.project.findMany({
         where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        // Do not include detail to optimize list fetching
+        include: { translations: true },
       }),
       this.prisma.project.count({ where }),
     ]);
+
+    const projects = rawProjects.map((proj) => {
+      const trans = proj.translations.find((t) => t.lang === lang) || proj.translations.find((t) => t.lang === Language.VI);
+      return {
+        ...proj,
+        name: trans?.name || proj.name,
+        slug: trans?.slug || proj.slug,
+        description: trans?.description || proj.description,
+        alternates: {
+          viSlug: proj.translations.find((t) => t.lang === Language.VI)?.slug || proj.slug,
+          enSlug: proj.translations.find((t) => t.lang === Language.EN)?.slug || null,
+        },
+      };
+    });
 
     const pageMetaDto = new PageMetaDto(total, filterDto, projects.length);
     const result = new PageDto(projects, pageMetaDto);
@@ -136,34 +166,26 @@ export class ProjectsService {
     return result;
   }
 
-  async findOne(idOrSlug: string) {
+  async findOne(idOrSlug: string, lang: Language = Language.VI) {
     const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
-    const cacheKey = CACHE_KEYS.PROJECTS.DETAIL(idOrSlug);
+    const cacheKey = `cache:project:detail:${lang}:${idOrSlug}`;
 
     try {
       const cached = await this.redis.client.get(cacheKey);
       if (cached) return cached;
     } catch (e) {}
 
-    const project = await this.prisma.project.findUnique({
-      where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
+    const project = await this.prisma.project.findFirst({
+      where: isUuid
+        ? { id: idOrSlug }
+        : { OR: [{ slug: idOrSlug }, { translations: { some: { slug: idOrSlug } } }] },
       include: {
         detail: true,
+        translations: true,
         products: {
           include: {
             product: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                thumbnailUrl: true,
-                price: true,
-                isFeatured: true,
-                status: true,
-                categoryId: true,
-                viewCount: true,
-                createdAt: true,
-              },
+              include: { translations: true },
             },
           },
         },
@@ -178,32 +200,87 @@ export class ProjectsService {
       });
     }
 
+    const trans = project.translations.find((t) => t.lang === lang) || project.translations.find((t) => t.lang === Language.VI);
+
     const formattedProject = {
       id: project.id,
-      name: project.name,
-      slug: project.slug,
-      description: project.description,
+      name: trans?.name || project.name,
+      slug: trans?.slug || project.slug,
+      description: trans?.description || project.description,
       coverImage: project.coverImage,
       status: project.status,
       isFeatured: project.isFeatured,
       createdAt: project.createdAt,
-      detail: project.detail ? { contentDetail: project.detail.contentDetail } : null,
+      detail: { contentDetail: trans?.contentDetail || project.detail?.contentDetail || '' },
       images: project.detail?.images ?? [],
       videoUrls: project.detail?.videoUrls ?? [],
       productIds: project.products.map(p => p.productId),
       categoryIds: project.categories.map(c => c.categoryId),
-      relatedProducts: project.products.map(p => p.product),
+      relatedProducts: project.products.map(p => {
+        const prodTrans = p.product.translations.find((t) => t.lang === lang) || p.product.translations.find((t) => t.lang === Language.VI);
+        return {
+          id: p.product.id,
+          name: prodTrans?.name || p.product.name,
+          slug: prodTrans?.slug || p.product.slug,
+          thumbnailUrl: p.product.thumbnailUrl,
+          price: p.product.price,
+          isFeatured: p.product.isFeatured,
+          status: p.product.status,
+          categoryId: p.product.categoryId,
+          viewCount: p.product.viewCount,
+          createdAt: p.product.createdAt,
+        };
+      }),
+      alternates: {
+        viSlug: project.translations.find((t) => t.lang === Language.VI)?.slug || project.slug,
+        enSlug: project.translations.find((t) => t.lang === Language.EN)?.slug || null,
+      },
     };
 
     try {
-      const otherKey = isUuid ? project.slug : project.id;
-      await Promise.all([
-        this.redis.client.set(cacheKey, formattedProject, { ex: CACHE_TTL.SEVEN_DAYS }),
-        this.redis.client.set(CACHE_KEYS.PROJECTS.DETAIL(otherKey), formattedProject, { ex: CACHE_TTL.SEVEN_DAYS }),
-      ]);
+      await this.redis.client.set(cacheKey, formattedProject, { ex: CACHE_TTL.SEVEN_DAYS });
     } catch (e) {}
 
     return formattedProject;
+  }
+
+  async upsertTranslation(projectId: string, dto: UpsertProjectTranslationDto) {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+    if (!project) {
+      throw new NotFoundException({
+        message: 'Không tìm thấy dự án',
+        errorCode: 'PROJECT_NOT_FOUND',
+      });
+    }
+
+    const slug = dto.slug?.trim() ? dto.slug.trim() : generateSlug(dto.name);
+
+    const translation = await this.prisma.projectTranslation.upsert({
+      where: {
+        projectId_lang: { projectId, lang: dto.lang },
+      },
+      update: {
+        name: dto.name,
+        slug,
+        description: dto.description !== undefined ? dto.description : project.description,
+        contentDetail: dto.contentDetail !== undefined ? dto.contentDetail : undefined,
+      },
+      create: {
+        projectId,
+        lang: dto.lang,
+        name: dto.name,
+        slug,
+        description: dto.description || project.description || '',
+        contentDetail: dto.contentDetail || '',
+      },
+    });
+
+    try {
+      const keys = await this.redis.client.keys('cache:project*');
+      if (keys.length > 0) await this.redis.client.del(...keys);
+    } catch (e) {}
+
+    return translation;
   }
 
   async update(id: string, updateProjectDto: UpdateProjectDto) {
@@ -275,19 +352,22 @@ export class ProjectsService {
     const result = await this.prisma.project.update({
       where: { id },
       data: updateData,
+      include: { translations: true },
     });
 
+    // Update VI translation if name changed
+    if (projectData.name) {
+      const slug = projectData.slug || generateSlug(projectData.name);
+      await this.prisma.projectTranslation.upsert({
+        where: { projectId_lang: { projectId: id, lang: Language.VI } },
+        update: { name: projectData.name, slug, description: projectData.description || result.description, contentDetail: contentDetail || '' },
+        create: { projectId: id, lang: Language.VI, name: projectData.name, slug, description: projectData.description || result.description || '', contentDetail: contentDetail || '' },
+      });
+    }
+
     try {
-      const delKeys = [
-        CACHE_KEYS.PROJECTS.DETAIL(id),
-        CACHE_KEYS.PROJECTS.DETAIL(existing.slug),
-        ...(result.slug !== existing.slug ? [CACHE_KEYS.PROJECTS.DETAIL(result.slug)] : []),
-      ];
-      const listKeys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.LIST_PREFIX);
-      await Promise.all([
-        this.redis.client.del(...delKeys),
-        ...(listKeys.length > 0 ? [this.redis.client.del(...listKeys)] : []),
-      ]);
+      const keys = await this.redis.client.keys('cache:project*');
+      if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) {}
 
     return result;
@@ -309,11 +389,8 @@ export class ProjectsService {
     const result = await this.prisma.project.delete({ where: { id } });
 
     try {
-      const listKeys = await this.redis.client.keys(CACHE_KEYS.PROJECTS.LIST_PREFIX);
-      await Promise.all([
-        this.redis.client.del(CACHE_KEYS.PROJECTS.DETAIL(id), CACHE_KEYS.PROJECTS.DETAIL(existing.slug)),
-        ...(listKeys.length > 0 ? [this.redis.client.del(...listKeys)] : []),
-      ]);
+      const keys = await this.redis.client.keys('cache:project*');
+      if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) {}
 
     return result;

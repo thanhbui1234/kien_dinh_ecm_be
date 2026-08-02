@@ -3,10 +3,12 @@ import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { GetProjectsFilterDto } from './dto/get-projects-filter.dto';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { UpsertProjectTranslationDto } from '../../common/dto/upsert-translation.dto';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { ApiSuccessResponse, ApiStandardErrors } from '../../common/decorators/api-success-response.decorator';
 import { ProjectResponseDto } from './dto/project-response.dto';
+import { Language } from '@prisma/client';
 
 @ApiTags('Projects')
 @ApiStandardErrors()
@@ -22,7 +24,7 @@ export class ProjectsController {
     return this.projectsService.create(createProjectDto);
   }
 
-  @ApiOperation({ summary: 'Lấy danh sách dự án' })
+  @ApiOperation({ summary: 'Lấy danh sách dự án (có lọc ngôn ngữ)' })
   @ApiSuccessResponse({ model: ProjectResponseDto, isPaginated: true, description: 'Lấy danh sách dự án thành công' })
   @Public()
   @Get()
@@ -30,12 +32,20 @@ export class ProjectsController {
     return this.projectsService.findAll(filterDto);
   }
 
-  @ApiOperation({ summary: 'Lấy chi tiết dự án theo ID hoặc slug' })
+  @ApiOperation({ summary: 'Lấy chi tiết dự án theo ID hoặc slug (có hỗ trợ i18n)' })
+  @ApiQuery({ name: 'lang', enum: Language, required: false, description: 'Ngôn ngữ hiển thị (VI | EN)' })
   @ApiSuccessResponse({ model: ProjectResponseDto, description: 'Lấy chi tiết dự án thành công' })
   @Public()
   @Get(':idOrSlug')
-  findOne(@Param('idOrSlug') idOrSlug: string) {
-    return this.projectsService.findOne(idOrSlug);
+  findOne(@Param('idOrSlug') idOrSlug: string, @Query('lang') lang?: Language) {
+    return this.projectsService.findOne(idOrSlug, lang || Language.VI);
+  }
+
+  @ApiOperation({ summary: 'Thêm/Cập nhật bản dịch dự án' })
+  @ApiBearerAuth('JWT-auth')
+  @Post(':id/translation')
+  upsertTranslation(@Param('id') id: string, @Body() dto: UpsertProjectTranslationDto) {
+    return this.projectsService.upsertTranslation(id, dto);
   }
 
   @ApiOperation({ summary: 'Cập nhật dự án' })
