@@ -1,4 +1,5 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { AppMessages } from '../../common/constants/messages.constant';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis.service';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -8,7 +9,7 @@ import { UpsertProjectTranslationDto } from '../../common/dto/upsert-translation
 import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
 import { Prisma, Language } from '@prisma/client';
-import { generateSlug } from '../../common/utils/string.util';
+import { generateSlug, isUuid } from '../../common/utils/string.util';
 
 @Injectable()
 export class ProjectsService {
@@ -33,7 +34,7 @@ export class ProjectsService {
         projectData.slug = `${projectData.slug}-${Date.now()}`;
       } else {
         throw new ConflictException({
-          message: 'Slug dự án đã tồn tại',
+          message: AppMessages.PROJECT.SLUG_EXISTS,
           errorCode: 'PROJECT_SLUG_EXISTS',
         });
       }
@@ -100,7 +101,7 @@ export class ProjectsService {
     return result;
   }
 
-  async findAll(filterDto: GetProjectsFilterDto & { lang?: Language }) {
+  async findAll(filterDto: GetProjectsFilterDto) {
     const { search, status, isFeatured, lang = Language.VI } = filterDto;
     const skip = filterDto.skip;
     const limit = filterDto.limit ?? 10;
@@ -122,13 +123,11 @@ export class ProjectsService {
       where.isFeatured = isFeatured === 'true' as any ? true : (isFeatured === 'false' as any ? false : isFeatured);
     }
 
-    const cacheKey = `cache:projects:list:${lang}:${JSON.stringify(filterDto)}`;
+    const cacheKey = CACHE_KEYS.PROJECTS.GET_LIST(filterDto, lang);
 
     try {
       const cached = await this.redis.client.get(cacheKey);
-      if (cached) {
-        return cached as PageDto<any>;
-      }
+      if (cached) return cached as PageDto<any>;
     } catch (e) {}
 
     const [rawProjects, total] = await this.prisma.$transaction([
@@ -143,15 +142,16 @@ export class ProjectsService {
     ]);
 
     const projects = rawProjects.map((proj) => {
-      const trans = proj.translations.find((t) => t.lang === lang) || proj.translations.find((t) => t.lang === Language.VI);
+      const transMap = new Map(proj.translations.map((t) => [t.lang, t]));
+      const trans = transMap.get(lang) ?? transMap.get(Language.VI);
       return {
         ...proj,
         name: trans?.name || proj.name,
         slug: trans?.slug || proj.slug,
         description: trans?.description || proj.description,
         alternates: {
-          viSlug: proj.translations.find((t) => t.lang === Language.VI)?.slug || proj.slug,
-          enSlug: proj.translations.find((t) => t.lang === Language.EN)?.slug || null,
+          viSlug: transMap.get(Language.VI)?.slug || proj.slug,
+          enSlug: transMap.get(Language.EN)?.slug || null,
         },
       };
     });
@@ -167,8 +167,7 @@ export class ProjectsService {
   }
 
   async findOne(idOrSlug: string, lang: Language = Language.VI) {
-    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
-    const cacheKey = `cache:project:detail:${lang}:${idOrSlug}`;
+    const cacheKey = CACHE_KEYS.PROJECTS.DETAIL(idOrSlug, lang);
 
     try {
       const cached = await this.redis.client.get(cacheKey);
@@ -176,7 +175,7 @@ export class ProjectsService {
     } catch (e) {}
 
     const project = await this.prisma.project.findFirst({
-      where: isUuid
+      where: isUuid(idOrSlug)
         ? { id: idOrSlug }
         : { OR: [{ slug: idOrSlug }, { translations: { some: { slug: idOrSlug } } }] },
       include: {
@@ -184,9 +183,7 @@ export class ProjectsService {
         translations: true,
         products: {
           include: {
-            product: {
-              include: { translations: true },
-            },
+            product: { include: { translations: true } },
           },
         },
         categories: { select: { categoryId: true } },
@@ -195,12 +192,13 @@ export class ProjectsService {
 
     if (!project) {
       throw new NotFoundException({
-        message: 'Không tìm thấy dự án',
+        message: AppMessages.PROJECT.NOT_FOUND,
         errorCode: 'PROJECT_NOT_FOUND',
       });
     }
 
-    const trans = project.translations.find((t) => t.lang === lang) || project.translations.find((t) => t.lang === Language.VI);
+    const transMap = new Map(project.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(lang) ?? transMap.get(Language.VI);
 
     const formattedProject = {
       id: project.id,
@@ -217,7 +215,8 @@ export class ProjectsService {
       productIds: project.products.map(p => p.productId),
       categoryIds: project.categories.map(c => c.categoryId),
       relatedProducts: project.products.map(p => {
-        const prodTrans = p.product.translations.find((t) => t.lang === lang) || p.product.translations.find((t) => t.lang === Language.VI);
+        const prodTransMap = new Map(p.product.translations.map((t) => [t.lang, t]));
+        const prodTrans = prodTransMap.get(lang) ?? prodTransMap.get(Language.VI);
         return {
           id: p.product.id,
           name: prodTrans?.name || p.product.name,
@@ -232,9 +231,10 @@ export class ProjectsService {
         };
       }),
       alternates: {
-        viSlug: project.translations.find((t) => t.lang === Language.VI)?.slug || project.slug,
-        enSlug: project.translations.find((t) => t.lang === Language.EN)?.slug || null,
+        viSlug: transMap.get(Language.VI)?.slug || project.slug,
+        enSlug: transMap.get(Language.EN)?.slug || null,
       },
+      translations: project.translations,
     };
 
     try {
@@ -248,32 +248,44 @@ export class ProjectsService {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
     if (!project) {
       throw new NotFoundException({
-        message: 'Không tìm thấy dự án',
+        message: AppMessages.PROJECT.NOT_FOUND,
         errorCode: 'PROJECT_NOT_FOUND',
       });
     }
 
     const slug = dto.slug?.trim() ? dto.slug.trim() : generateSlug(dto.name);
 
-    const translation = await this.prisma.projectTranslation.upsert({
-      where: {
-        projectId_lang: { projectId, lang: dto.lang },
-      },
-      update: {
-        name: dto.name,
-        slug,
-        description: dto.description !== undefined ? dto.description : project.description,
-        contentDetail: dto.contentDetail !== undefined ? dto.contentDetail : undefined,
-      },
-      create: {
-        projectId,
-        lang: dto.lang,
-        name: dto.name,
-        slug,
-        description: dto.description || project.description || '',
-        contentDetail: dto.contentDetail || '',
-      },
-    });
+    let translation: Awaited<ReturnType<typeof this.prisma.projectTranslation.upsert>>;
+    try {
+      translation = await this.prisma.projectTranslation.upsert({
+        where: { projectId_lang: { projectId, lang: dto.lang } },
+        update: {
+          name: dto.name,
+          slug,
+          description: dto.description !== undefined ? dto.description : project.description,
+          contentDetail: dto.contentDetail !== undefined ? dto.contentDetail : undefined,
+        },
+        create: {
+          projectId,
+          lang: dto.lang,
+          name: dto.name,
+          slug,
+          description: dto.description || project.description || '',
+          contentDetail: dto.contentDetail || '',
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException({
+          message: AppMessages.TRANSLATION.INVALID_LANGUAGE,
+          errorCode: 'TRANSLATION_SLUG_EXISTS',
+        });
+      }
+      throw error;
+    }
 
     try {
       const keys = await this.redis.client.keys('cache:project*');
@@ -291,7 +303,7 @@ export class ProjectsService {
 
     if (!existing) {
       throw new NotFoundException({
-        message: 'Không tìm thấy dự án',
+        message: AppMessages.PROJECT.NOT_FOUND,
         errorCode: 'PROJECT_NOT_FOUND',
       });
     }
@@ -304,7 +316,7 @@ export class ProjectsService {
       });
       if (existingProject) {
         throw new ConflictException({
-          message: 'Slug dự án đã tồn tại',
+          message: AppMessages.PROJECT.SLUG_EXISTS,
           errorCode: 'PROJECT_SLUG_EXISTS',
         });
       }
@@ -360,7 +372,7 @@ export class ProjectsService {
       const slug = projectData.slug || generateSlug(projectData.name);
       await this.prisma.projectTranslation.upsert({
         where: { projectId_lang: { projectId: id, lang: Language.VI } },
-        update: { name: projectData.name, slug, description: projectData.description || result.description, contentDetail: contentDetail || '' },
+        update: { name: projectData.name, slug, description: projectData.description || result.description, contentDetail: contentDetail !== undefined ? contentDetail : undefined },
         create: { projectId: id, lang: Language.VI, name: projectData.name, slug, description: projectData.description || result.description || '', contentDetail: contentDetail || '' },
       });
     }
@@ -381,7 +393,7 @@ export class ProjectsService {
 
     if (!existing) {
       throw new NotFoundException({
-        message: 'Không tìm thấy dự án',
+        message: AppMessages.PROJECT.NOT_FOUND,
         errorCode: 'PROJECT_NOT_FOUND',
       });
     }

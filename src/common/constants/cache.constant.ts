@@ -1,42 +1,47 @@
 export const CACHE_TTL = {
   ONE_HOUR: 3600,
   TWELVE_HOURS: 43200,
-  TWENTY_FOUR_HOURS: 86400, // 24 hours
-  SEVEN_DAYS: 604800, // 7 days
+  TWENTY_FOUR_HOURS: 86400,
+  SEVEN_DAYS: 604800,
 };
 
 export const CACHE_KEYS = {
   // --- ABOUT ---
   ABOUT: {
-    COMPANY_PROFILE: 'cache:about:company_profile',
-    COMPANY_INFO: 'cache:about:company_info',
-    FACILITIES: 'cache:about:facilities',
-    HISTORY_EVENTS: 'cache:about:history_events',
-    COMPANY_LOCATIONS: 'cache:about:company_locations',
+    COMPANY_PROFILE: (lang: string = 'VI') => `cache:about:company_profile:${lang}`,
+    COMPANY_INFO: (lang: string = 'VI') => `cache:about:company_info:${lang}`,
+    FACILITIES: (lang: string = 'VI') => `cache:about:facilities:${lang}`,
+    HISTORY_EVENTS: (lang: string = 'VI') => `cache:about:history_events:${lang}`,
+    COMPANY_LOCATIONS: (lang: string = 'VI') => `cache:about:company_locations:${lang}`,
+    LIST_PREFIX: 'cache:about:*',
   },
 
   // --- SETTINGS ---
   SETTINGS: {
     SYSTEM: 'cache:system:settings',
-    COMPANY_SLOGANS: 'cache:system:company_slogans',
-    BANNERS: 'cache:system:banners',
+    COMPANY_SLOGANS: (lang: string = 'VI') => `cache:system:company_slogans:${lang}`,
+    BANNERS: (lang: string = 'VI') => `cache:system:banners:${lang}`,
+    LIST_PREFIX: 'cache:system:company_slogans:*',
+    BANNERS_PREFIX: 'cache:system:banners:*',
   },
 
   // --- CONTACT ---
   CONTACT: {
-    SETTING: 'cache:contact:setting',
+    SETTING: (lang: string = 'VI') => `cache:contact:setting:${lang}`,
+    PREFIX: 'cache:contact:setting:*',
   },
 
   // --- FOOTER ---
   FOOTER: {
-    SETTING: 'cache:footer:setting',
+    SETTING: (lang: string = 'VI') => `cache:footer:setting:${lang}`,
+    PREFIX: 'cache:footer:setting:*',
   },
 
   // --- CATEGORIES ---
   CATEGORIES: {
     LIST_PREFIX: 'cache:categories:*',
     FLAT: (lang: string = 'VI') => `cache:categories:flat:${lang}`,
-    DETAIL: (idOrSlug: string, lang: string = 'VI') => `cache:category:detail:${lang}:${idOrSlug}`,
+    DETAIL: (idOrSlug: string, lang: string = 'VI') => `cache:categories:detail:${lang}:${idOrSlug}`,
   },
 
   // --- PRODUCTS ---

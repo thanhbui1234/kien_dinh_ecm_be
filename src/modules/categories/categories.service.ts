@@ -6,7 +6,7 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { UpsertCategoryTranslationDto } from '../../common/dto/upsert-translation.dto';
 import { AppMessages } from '../../common/constants/messages.constant';
 import { ErrorCode } from '../../common/constants/error-codes.constant';
-import { generateSlug } from '../../common/utils/string.util';
+import { generateSlug, isUuid } from '../../common/utils/string.util';
 import { Prisma, Language } from '@prisma/client';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 
@@ -75,12 +75,10 @@ export class CategoriesService {
   }
 
   async findAll(lang: Language = Language.VI) {
-    const cacheKey = `cache:categories:flat:${lang}`;
+    const cacheKey = CACHE_KEYS.CATEGORIES.FLAT(lang);
     try {
       const cachedFlat = await this.redis.client.get<any[]>(cacheKey);
-      if (cachedFlat) {
-        return cachedFlat;
-      }
+      if (cachedFlat) return cachedFlat;
     } catch (error) { }
 
     const flatCategories = await this.prisma.category.findMany({
@@ -89,14 +87,15 @@ export class CategoriesService {
     });
 
     const localized = flatCategories.map((cat) => {
-      const trans = cat.translations.find((t) => t.lang === lang) || cat.translations.find((t) => t.lang === Language.VI);
+      const transMap = new Map(cat.translations.map((t) => [t.lang, t]));
+      const trans = transMap.get(lang) ?? transMap.get(Language.VI);
       return {
         ...cat,
         name: trans?.name || cat.name,
         slug: trans?.slug || cat.slug,
         alternates: {
-          viSlug: cat.translations.find((t) => t.lang === Language.VI)?.slug || cat.slug,
-          enSlug: cat.translations.find((t) => t.lang === Language.EN)?.slug || null,
+          viSlug: transMap.get(Language.VI)?.slug || cat.slug,
+          enSlug: transMap.get(Language.EN)?.slug || null,
         },
       };
     });
@@ -109,9 +108,15 @@ export class CategoriesService {
   }
 
   async findOne(idOrSlug: string, lang: Language = Language.VI) {
-    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
+    const cacheKey = CACHE_KEYS.CATEGORIES.DETAIL(idOrSlug, lang);
+
+    try {
+      const cached = await this.redis.client.get<any>(cacheKey);
+      if (cached) return cached;
+    } catch (error) { }
+
     const category = await this.prisma.category.findFirst({
-      where: isUuid
+      where: isUuid(idOrSlug)
         ? { id: idOrSlug }
         : { OR: [{ slug: idOrSlug }, { translations: { some: { slug: idOrSlug } } }] },
       include: {
@@ -128,16 +133,23 @@ export class CategoriesService {
       });
     }
 
-    const trans = category.translations.find((t) => t.lang === lang) || category.translations.find((t) => t.lang === Language.VI);
-    return {
+    const transMap = new Map(category.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(lang) ?? transMap.get(Language.VI);
+    const result = {
       ...category,
       name: trans?.name || category.name,
       slug: trans?.slug || category.slug,
       alternates: {
-        viSlug: category.translations.find((t) => t.lang === Language.VI)?.slug || category.slug,
-        enSlug: category.translations.find((t) => t.lang === Language.EN)?.slug || null,
+        viSlug: transMap.get(Language.VI)?.slug || category.slug,
+        enSlug: transMap.get(Language.EN)?.slug || null,
       },
     };
+
+    try {
+      await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
+    } catch (error) { }
+
+    return result;
   }
 
   async upsertTranslation(categoryId: string, dto: UpsertCategoryTranslationDto) {
@@ -151,21 +163,25 @@ export class CategoriesService {
 
     const slug = dto.slug?.trim() ? dto.slug.trim() : generateSlug(dto.name);
 
-    const translation = await this.prisma.categoryTranslation.upsert({
-      where: {
-        categoryId_lang: { categoryId, lang: dto.lang },
-      },
-      update: {
-        name: dto.name,
-        slug,
-      },
-      create: {
-        categoryId,
-        lang: dto.lang,
-        name: dto.name,
-        slug,
-      },
-    });
+    let translation: Awaited<ReturnType<typeof this.prisma.categoryTranslation.upsert>>;
+    try {
+      translation = await this.prisma.categoryTranslation.upsert({
+        where: { categoryId_lang: { categoryId, lang: dto.lang } },
+        update: { name: dto.name, slug },
+        create: { categoryId, lang: dto.lang, name: dto.name, slug },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException({
+          message: AppMessages.TRANSLATION.INVALID_LANGUAGE,
+          errorCode: 'TRANSLATION_SLUG_EXISTS',
+        });
+      }
+      throw error;
+    }
 
     try {
       const keys = await this.redis.client.keys('cache:categories:*');

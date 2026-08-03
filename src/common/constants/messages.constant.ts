@@ -58,6 +58,53 @@ export const AppMessages = {
     CIRCULAR_PARENT: 'Sản phẩm không thể làm cha của chính nó.',
   },
 
+  // Job Messages
+  JOB: {
+    NOT_FOUND: 'Không tìm thấy bài tuyển dụng.',
+    SLUG_EXISTS: 'Slug bài đăng đã tồn tại.',
+    DELETE_SUCCESS: 'Đã xóa bài tuyển dụng thành công.',
+  },
+
+  // Project Messages
+  PROJECT: {
+    NOT_FOUND: 'Không tìm thấy dự án.',
+    SLUG_EXISTS: 'Slug dự án đã tồn tại.',
+    DELETE_SUCCESS: 'Đã xóa dự án thành công.',
+  },
+
+  // About Module Messages
+  COMPANY_INFO: {
+    NOT_FOUND: 'Không tìm thấy thông tin công ty.',
+  },
+  FACILITY: {
+    NOT_FOUND: 'Không tìm thấy cơ sở sản xuất.',
+  },
+  COMPANY_PROFILE: {
+    NOT_FOUND: 'Không tìm thấy profile công ty.',
+  },
+  HISTORY_EVENT: {
+    NOT_FOUND: 'Không tìm thấy sự kiện lịch sử.',
+  },
+  COMPANY_LOCATION: {
+    NOT_FOUND: 'Không tìm thấy vị trí công ty.',
+  },
+
+  // Settings Module Messages
+  COMPANY_SLOGAN: {
+    NOT_FOUND: 'Không tìm thấy slogan.',
+  },
+  BANNER: {
+    NOT_FOUND: 'Không tìm thấy banner.',
+  },
+
+  // Singleton Setting Messages
+  CONTACT_SETTING: {
+    NOT_FOUND: 'Không tìm thấy cấu hình liên hệ.',
+  },
+  FOOTER_SETTING: {
+    NOT_FOUND: 'Không tìm thấy cấu hình footer.',
+  },
+
   // Translation i18n Messages
   TRANSLATION: {
     UPSERT_SUCCESS: 'Lưu bản dịch thành công.',

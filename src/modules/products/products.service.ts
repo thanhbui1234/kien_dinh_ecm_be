@@ -10,7 +10,7 @@ import { AppMessages } from '../../common/constants/messages.constant';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
 import { Prisma, Language } from '@prisma/client';
-import { generateSlug } from '../../common/utils/string.util';
+import { generateSlug, isUuid } from '../../common/utils/string.util';
 
 function isSlugConflict(error: unknown): boolean {
   return (
@@ -251,21 +251,16 @@ export class ProductsService {
       where.isFeatured = isFeatured === 'true' as any ? true : (isFeatured === 'false' as any ? false : isFeatured);
     }
 
-    const cacheKey = `cache:products:list:${lang}:${JSON.stringify(filterDto)}`;
+    const cacheKey = CACHE_KEYS.PRODUCTS.GET_LIST(filterDto, lang);
 
     try {
       const cached = await this.redis.client.get(cacheKey);
-      if (cached) {
-        return cached;
-      }
+      if (cached) return cached;
     } catch (error) { }
 
     let orderBy: Prisma.ProductOrderByWithRelationInput | Prisma.ProductOrderByWithRelationInput[] = { createdAt: 'desc' };
     if (sortBy === 'category') {
-      orderBy = [
-        { category: { orderIndex: 'asc' } },
-        { createdAt: 'desc' }
-      ];
+      orderBy = [{ category: { orderIndex: 'asc' } }, { createdAt: 'desc' }];
     } else if (sortBy === 'price') {
       orderBy = { price: 'asc' };
     } else if (sortBy === 'viewCount') {
@@ -281,7 +276,6 @@ export class ProductsService {
         include: {
           translations: true,
           category: { include: { translations: true } },
-          variants: { include: { translations: true } }
         },
       }),
       this.prisma.product.count({ where }),
@@ -289,8 +283,10 @@ export class ProductsService {
 
     const targetLang = (lang ? (lang as string).toUpperCase() : Language.VI) as Language;
     const items = rawItems.map((prod) => {
-      const trans = prod.translations.find((t) => t.lang === targetLang) || prod.translations.find((t) => t.lang === Language.VI);
-      const catTrans = prod.category?.translations.find((t) => t.lang === targetLang) || prod.category?.translations.find((t) => t.lang === Language.VI);
+      const transMap = new Map(prod.translations.map((t) => [t.lang, t]));
+      const trans = transMap.get(targetLang) ?? transMap.get(Language.VI);
+      const catTransMap = prod.category ? new Map(prod.category.translations.map((t) => [t.lang, t])) : null;
+      const catTrans = catTransMap ? (catTransMap.get(targetLang) ?? catTransMap.get(Language.VI)) : null;
 
       return {
         ...prod,
@@ -302,8 +298,8 @@ export class ProductsService {
           slug: catTrans?.slug || prod.category.slug,
         } : null,
         alternates: {
-          viSlug: prod.translations.find((t) => t.lang === Language.VI)?.slug || prod.slug,
-          enSlug: prod.translations.find((t) => t.lang === Language.EN)?.slug || null,
+          viSlug: transMap.get(Language.VI)?.slug || prod.slug,
+          enSlug: transMap.get(Language.EN)?.slug || null,
         },
       };
     });
@@ -319,22 +315,15 @@ export class ProductsService {
   }
 
   async findOne(idOrSlug: string, lang: Language = Language.VI) {
-    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
-    const cacheKey = `cache:product:detail:${lang}:${idOrSlug}`;
-
-    this.logger.log(`[findOne] idOrSlug=${idOrSlug} | lang=${lang} | cacheKey=${cacheKey}`);
+    const cacheKey = CACHE_KEYS.PRODUCTS.DETAIL(idOrSlug, lang);
 
     try {
       const cached = await this.redis.client.get(cacheKey);
-      if (cached) {
-        this.logger.log(`[findOne] CACHE HIT: ${cacheKey}`);
-        return cached;
-      }
-      this.logger.log(`[findOne] CACHE MISS: ${cacheKey}`);
+      if (cached) return cached;
     } catch (error) { }
 
     const product = await this.prisma.product.findFirst({
-      where: isUuid
+      where: isUuid(idOrSlug)
         ? { id: idOrSlug }
         : { OR: [{ slug: idOrSlug }, { translations: { some: { slug: idOrSlug } } }] },
       include: {
@@ -355,14 +344,10 @@ export class ProductsService {
     }
 
     const targetLang = (lang ? (lang as string).toUpperCase() : Language.VI) as Language;
-    const trans = product.translations.find((t) => t.lang === targetLang) || product.translations.find((t) => t.lang === Language.VI);
-    const catTrans = product.category?.translations.find((t) => t.lang === targetLang) || product.category?.translations.find((t) => t.lang === Language.VI);
-
-    this.logger.log(
-      `[findOne] product.id=${product.id} | targetLang=${targetLang} | ` +
-      `translations available=[${product.translations.map((t) => t.lang).join(', ')}] | ` +
-      `matched trans lang=${trans?.lang ?? 'NONE (fallback VI)'}`
-    );
+    const transMap = new Map(product.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(targetLang) ?? transMap.get(Language.VI);
+    const catTransMap = product.category ? new Map(product.category.translations.map((t) => [t.lang, t])) : null;
+    const catTrans = catTransMap ? (catTransMap.get(targetLang) ?? catTransMap.get(Language.VI)) : null;
 
     const localizedProduct = {
       ...product,
@@ -382,8 +367,8 @@ export class ProductsService {
         slug: catTrans?.slug || product.category.slug,
       } : null,
       alternates: {
-        viSlug: product.translations.find((t) => t.lang === Language.VI)?.slug || product.slug,
-        enSlug: product.translations.find((t) => t.lang === Language.EN)?.slug || null,
+        viSlug: transMap.get(Language.VI)?.slug || product.slug,
+        enSlug: transMap.get(Language.EN)?.slug || null,
       },
     };
 
@@ -405,37 +390,44 @@ export class ProductsService {
 
     const slug = dto.slug?.trim() ? dto.slug.trim() : generateSlug(dto.name);
 
-    const translation = await this.prisma.productTranslation.upsert({
-      where: {
-        productId_lang: { productId, lang: dto.lang },
-      },
-      update: {
-        name: dto.name,
-        slug,
-        contentDetail: dto.contentDetail !== undefined ? dto.contentDetail : undefined,
-        specifications: dto.specifications !== undefined ? dto.specifications : undefined,
-        features: dto.features !== undefined ? dto.features : undefined,
-        seoTitle: dto.seoTitle !== undefined ? dto.seoTitle : dto.name,
-        seoDescription: dto.seoDescription !== undefined ? dto.seoDescription : dto.name,
-      },
-      create: {
-        productId,
-        lang: dto.lang,
-        name: dto.name,
-        slug,
-        contentDetail: dto.contentDetail || '',
-        specifications: dto.specifications || {},
-        features: dto.features || Prisma.JsonNull,
-        seoTitle: dto.seoTitle || dto.name,
-        seoDescription: dto.seoDescription || dto.name,
-      },
-    });
+    let translation: Awaited<ReturnType<typeof this.prisma.productTranslation.upsert>>;
+    try {
+      translation = await this.prisma.productTranslation.upsert({
+        where: { productId_lang: { productId, lang: dto.lang } },
+        update: {
+          name: dto.name,
+          slug,
+          contentDetail: dto.contentDetail !== undefined ? dto.contentDetail : undefined,
+          specifications: dto.specifications !== undefined ? dto.specifications : undefined,
+          features: dto.features !== undefined ? dto.features : undefined,
+          seoTitle: dto.seoTitle !== undefined ? dto.seoTitle : dto.name,
+          seoDescription: dto.seoDescription !== undefined ? dto.seoDescription : dto.name,
+        },
+        create: {
+          productId,
+          lang: dto.lang,
+          name: dto.name,
+          slug,
+          contentDetail: dto.contentDetail || '',
+          specifications: dto.specifications || {},
+          features: dto.features || Prisma.JsonNull,
+          seoTitle: dto.seoTitle || dto.name,
+          seoDescription: dto.seoDescription || dto.name,
+        },
+      });
+    } catch (error) {
+      if (isSlugConflict(error)) {
+        throw new ConflictException({
+          message: AppMessages.TRANSLATION.INVALID_LANGUAGE,
+          errorCode: 'TRANSLATION_SLUG_EXISTS',
+        });
+      }
+      throw error;
+    }
 
     try {
       const keys = await this.redis.client.keys('cache:product*');
-      if (keys.length > 0) {
-        await this.redis.client.del(...keys);
-      }
+      if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (error) { }
 
     return translation;
@@ -590,6 +582,15 @@ export class ProductsService {
         variants: true,
       },
     });
+
+    if (productData.name) {
+      const viSlug = productData.slug || generateSlug(productData.name);
+      await this.prisma.productTranslation.upsert({
+        where: { productId_lang: { productId: id, lang: Language.VI } },
+        update: { name: productData.name, slug: viSlug },
+        create: { productId: id, lang: Language.VI, name: productData.name, slug: viSlug },
+      });
+    }
 
     try {
       const delKeys = [

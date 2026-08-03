@@ -239,25 +239,52 @@ model JobPostDetail {
 }
 
 model CompanyInfo {
-  id         String  @id @default(uuid())
-  label      String
-  value      String
-  imageUrl   String?
-  orderIndex Int     @default(0)
+  id           String                   @id @default(uuid())
+  label        String
+  value        String
+  imageUrl     String?
+  orderIndex   Int                      @default(0)
+  translations CompanyInfoTranslation[]
 
   @@index([orderIndex])
 }
 
+model CompanyInfoTranslation {
+  id            String      @id @default(uuid())
+  companyInfoId String
+  lang          Language    @default(VI)
+  label         String
+  value         String
+  companyInfo   CompanyInfo @relation(fields: [companyInfoId], references: [id], onDelete: Cascade)
+
+  @@unique([companyInfoId, lang])
+  @@index([lang])
+}
+
 model Facility {
-  id         String  @id @default(uuid())
-  country    String
-  name       String
-  address    String
-  phone      String
-  imageUrl   String?
-  orderIndex Int     @default(0)
+  id           String                @id @default(uuid())
+  country      String
+  name         String
+  address      String
+  phone        String
+  imageUrl     String?
+  orderIndex   Int                   @default(0)
+  translations FacilityTranslation[]
 
   @@index([orderIndex])
+}
+
+model FacilityTranslation {
+  id         String   @id @default(uuid())
+  facilityId String
+  lang       Language @default(VI)
+  name       String
+  country    String
+  address    String
+  facility   Facility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+
+  @@unique([facilityId, lang])
+  @@index([lang])
 }
 
 model SystemSetting {
@@ -267,63 +294,125 @@ model SystemSetting {
 }
 
 model CompanySlogan {
-  id          String  @id @default(uuid())
-  title       String
-  icon        String
-  orderIndex  Int     @default(0)
-  description String?
+  id           String                    @id @default(uuid())
+  title        String
+  icon         String
+  orderIndex   Int                       @default(0)
+  description  String?
+  translations CompanySloganTranslation[]
 
   @@index([orderIndex])
 }
 
+model CompanySloganTranslation {
+  id          String        @id @default(uuid())
+  sloganId    String
+  lang        Language      @default(VI)
+  title       String
+  description String?
+  slogan      CompanySlogan @relation(fields: [sloganId], references: [id], onDelete: Cascade)
 
+  @@unique([sloganId, lang])
+  @@index([lang])
+}
 
 model Banner {
-  id          String   @id @default(uuid())
-  imageUrl    String
-  orderIndex  Int      @default(0)
-  status      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  description String?
-  link        String?
-  title       String?
+  id           String                @id @default(uuid())
+  imageUrl     String
+  orderIndex   Int                   @default(0)
+  status       Boolean               @default(true)
+  createdAt    DateTime              @default(now())
+  description  String?
+  link         String?
+  title        String?
+  translations BannerTranslation[]
 
   @@index([status, orderIndex])
 }
 
+model BannerTranslation {
+  id          String   @id @default(uuid())
+  bannerId    String
+  lang        Language @default(VI)
+  title       String?
+  description String?
+  banner      Banner   @relation(fields: [bannerId], references: [id], onDelete: Cascade)
+
+  @@unique([bannerId, lang])
+  @@index([lang])
+}
+
 model CompanyProfile {
-  id           String  @id @default("singleton")
-  introHtml    String  @default("")
+  id           String                       @id @default("singleton")
+  introHtml    String                       @default("")
   thumbnailUrl String?
+  translations CompanyProfileTranslation[]
+}
+
+model CompanyProfileTranslation {
+  id        String         @id @default(uuid())
+  profileId String
+  lang      Language       @default(VI)
+  introHtml String         @db.Text
+  profile   CompanyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, lang])
+  @@index([lang])
 }
 
 model CompanyHistoryEvent {
-  id         String   @id @default(uuid())
-  period     String
-  year       String
-  text       String
-  imageUrl   String?
-  orderIndex Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id           String                          @id @default(uuid())
+  period       String
+  year         String
+  text         String
+  imageUrl     String?
+  orderIndex   Int                             @default(0)
+  createdAt    DateTime                        @default(now())
+  updatedAt    DateTime                        @updatedAt
+  translations CompanyHistoryEventTranslation[]
 
   @@index([period, orderIndex])
 }
 
+model CompanyHistoryEventTranslation {
+  id      String              @id @default(uuid())
+  eventId String
+  lang    Language            @default(VI)
+  period  String
+  text    String
+  event   CompanyHistoryEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, lang])
+  @@index([lang])
+}
+
 model CompanyLocation {
-  id            String   @id @default(uuid())
+  id            String                       @id @default(uuid())
   title         String
   addressLabel  String
   address       String
   directionsUrl String?
   mapUrl        String?
-  orderIndex    Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  orderIndex    Int                          @default(0)
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+  translations  CompanyLocationTranslation[]
 
   @@index([orderIndex])
 }
 
+model CompanyLocationTranslation {
+  id           String          @id @default(uuid())
+  locationId   String
+  lang         Language        @default(VI)
+  title        String
+  addressLabel String
+  address      String
+  location     CompanyLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([locationId, lang])
+  @@index([lang])
+}
 
 enum LeadPriority {
   HIGH
@@ -332,33 +421,63 @@ enum LeadPriority {
 }
 
 model ContactSetting {
-  id           String   @id @default("singleton")
-  title        String   @default("Liên hệ với chúng tôi")
-  description  String   @default("Chúng tôi luôn sẵn sàng lắng nghe và giải đáp mọi thắc mắc của bạn về sản phẩm và dịch vụ. Hãy để lại thông tin, đội ngũ tư vấn sẽ liên hệ với bạn trong thời gian sớm nhất.")
-  hotline      String   @default("0374 864 110")
-  zalo         String   @default("0374 864 110")
-  email        String   @default("info@kiendinhecm.com")
+  id           String                        @id @default("singleton")
+  title        String                        @default("Liên hệ với chúng tôi")
+  description  String                        @default("Chúng tôi luôn sẵn sàng lắng nghe và giải đáp mọi thắc mắc của bạn về sản phẩm và dịch vụ. Hãy để lại thông tin, đội ngũ tư vấn sẽ liên hệ với bạn trong thời gian sớm nhất.")
+  hotline      String                        @default("0374 864 110")
+  zalo         String                        @default("0374 864 110")
+  email        String                        @default("info@kiendinhecm.com")
   address      String?
   workingHours String?
   mapUrl       String?
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime                      @updatedAt
+  translations ContactSettingTranslation[]
+}
+
+model ContactSettingTranslation {
+  id           String         @id @default(uuid())
+  settingId    String
+  lang         Language       @default(VI)
+  title        String
+  description  String
+  address      String?
+  workingHours String?
+  setting      ContactSetting @relation(fields: [settingId], references: [id], onDelete: Cascade)
+
+  @@unique([settingId, lang])
+  @@index([lang])
 }
 
 model FooterSetting {
-  id                   String   @id @default("singleton")
-  introText            String   @default("Công ty Cổ Phần Thanh Bằng tự hào là một trong những công ty uy tín nhất hiện nay và sẵn sàng cam kết với khách hàng về các vấn đề chất lượng, nguồn gốc xuất xứ của sản phẩm cũng như các dịch vụ đi kèm khác.")
-  facebookUrl          String?  @default("https://www.facebook.com/ThanhBangNamDinh")
-  youtubeUrl           String?  @default("https://www.youtube.com/@congtythanhbang1735")
+  id                   String                     @id @default("singleton")
+  introText            String                     @default("Công ty Cổ Phần Thanh Bằng tự hào là một trong những công ty uy tín nhất hiện nay và sẵn sàng cam kết với khách hàng về các vấn đề chất lượng, nguồn gốc xuất xứ của sản phẩm cũng như các dịch vụ đi kèm khác.")
+  facebookUrl          String?                    @default("https://www.facebook.com/ThanhBangNamDinh")
+  youtubeUrl           String?                    @default("https://www.youtube.com/@congtythanhbang1735")
   instagramUrl         String?
-  phone                String?  @default("0943676869")
-  email                String?  @default("maygachbetongtb@gmail.com")
-  address              String?  @default("Công Ty Cổ Phần Thanh Bằng, Xuân Trường, Ninh Bình 420000, Việt Nam")
-  salesPhone           String?  @default("0943.67.68.69")
-  feedbackPhone        String?  @default("0914 161 122")
-  warrantyPhone        String?  @default("0912 01 77 55")
-  customerSupportTitle String?  @default("HỖ TRỢ KHÁCH HÀNG")
+  phone                String?                    @default("0943676869")
+  email                String?                    @default("maygachbetongtb@gmail.com")
+  address              String?                    @default("Công Ty Cổ Phần Thanh Bằng, Xuân Trường, Ninh Bình 420000, Việt Nam")
+  salesPhone           String?                    @default("0943.67.68.69")
+  feedbackPhone        String?                    @default("0914 161 122")
+  warrantyPhone        String?                    @default("0912 01 77 55")
+  customerSupportTitle String?                    @default("HỖ TRỢ KHÁCH HÀNG")
   customerSupportLinks Json?
-  updatedAt            DateTime @updatedAt
+  updatedAt            DateTime                   @updatedAt
+  translations         FooterSettingTranslation[]
+}
+
+model FooterSettingTranslation {
+  id                   String        @id @default(uuid())
+  settingId            String
+  lang                 Language      @default(VI)
+  introText            String
+  address              String?
+  customerSupportTitle String?
+  customerSupportLinks Json?
+  setting              FooterSetting @relation(fields: [settingId], references: [id], onDelete: Cascade)
+
+  @@unique([settingId, lang])
+  @@index([lang])
 }
 
 

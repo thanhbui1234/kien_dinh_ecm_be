@@ -1,21 +1,22 @@
-import { Injectable, ConflictException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { GetJobsFilterDto } from './dto/get-jobs-filter.dto';
 import { UpsertJobPostTranslationDto } from '../../common/dto/upsert-translation.dto';
+import { AppMessages } from '../../common/constants/messages.constant';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/constants/cache.constant';
 import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
 import { Prisma, Language } from '@prisma/client';
-import { generateSlug } from '../../common/utils/string.util';
+import { generateSlug, isUuid } from '../../common/utils/string.util';
 
 @Injectable()
 export class JobsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-  ) {}
+  ) { }
 
   async create(createJobDto: CreateJobDto) {
     const { sections, ...jobData } = createJobDto;
@@ -33,7 +34,7 @@ export class JobsService {
         jobData.slug = `${jobData.slug}-${Date.now()}`;
       } else {
         throw new ConflictException({
-          message: 'Slug bài đăng đã tồn tại',
+          message: AppMessages.JOB.SLUG_EXISTS,
           errorCode: 'JOB_SLUG_EXISTS',
         });
       }
@@ -50,6 +51,7 @@ export class JobsService {
       translations: {
         create: [
           {
+
             lang: Language.VI,
             title: jobData.title,
             slug: jobData.slug as string,
@@ -67,18 +69,18 @@ export class JobsService {
         translations: true,
       },
     });
-    
-    try { 
+
+    try {
       const keys = await this.redis.client.keys('cache:job*');
       if (keys.length > 0) {
         await this.redis.client.del(...keys);
       }
-    } catch (e) {}
-    
+    } catch (e) { }
+
     return result;
   }
 
-  async findAll(filterDto: GetJobsFilterDto & { lang?: Language }) {
+  async findAll(filterDto: GetJobsFilterDto) {
     const { search, status, lang = Language.VI } = filterDto;
     const skip = filterDto.skip;
     const limit = filterDto.limit ?? 10;
@@ -96,14 +98,12 @@ export class JobsService {
       where.status = status;
     }
 
-    const cacheKey = `cache:jobs:list:${lang}:${JSON.stringify(filterDto)}`;
+    const cacheKey = CACHE_KEYS.JOBS.GET_LIST(filterDto, lang);
 
     try {
       const cached = await this.redis.client.get(cacheKey);
-      if (cached) {
-        return cached as PageDto<any>;
-      }
-    } catch (e) {}
+      if (cached) return cached as PageDto<any>;
+    } catch (e) { }
 
     const [rawJobs, total] = await this.prisma.$transaction([
       this.prisma.jobPost.findMany({
@@ -117,15 +117,16 @@ export class JobsService {
     ]);
 
     const jobs = rawJobs.map((job) => {
-      const trans = job.translations.find((t) => t.lang === lang) || job.translations.find((t) => t.lang === Language.VI);
+      const transMap = new Map(job.translations.map((t) => [t.lang, t]));
+      const trans = transMap.get(lang) ?? transMap.get(Language.VI);
       return {
         ...job,
         title: trans?.title || job.title,
         slug: trans?.slug || job.slug,
         salary: trans?.salary || job.salary,
         alternates: {
-          viSlug: job.translations.find((t) => t.lang === Language.VI)?.slug || job.slug,
-          enSlug: job.translations.find((t) => t.lang === Language.EN)?.slug || null,
+          viSlug: transMap.get(Language.VI)?.slug || job.slug,
+          enSlug: transMap.get(Language.EN)?.slug || null,
         },
       };
     });
@@ -135,22 +136,21 @@ export class JobsService {
 
     try {
       await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
-    } catch (e) {}
+    } catch (e) { }
 
     return result;
   }
 
   async findOne(idOrSlug: string, lang: Language = Language.VI) {
-    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idOrSlug);
-    const cacheKey = `cache:job:detail:${lang}:${idOrSlug}`;
+    const cacheKey = CACHE_KEYS.JOBS.DETAIL(idOrSlug, lang);
 
     try {
       const cached = await this.redis.client.get(cacheKey);
       if (cached) return cached;
-    } catch (e) {}
+    } catch (e) { }
 
     const job = await this.prisma.jobPost.findFirst({
-      where: isUuid
+      where: isUuid(idOrSlug)
         ? { id: idOrSlug }
         : { OR: [{ slug: idOrSlug }, { translations: { some: { slug: idOrSlug } } }] },
       include: { detail: true, translations: true },
@@ -158,12 +158,13 @@ export class JobsService {
 
     if (!job) {
       throw new NotFoundException({
-        message: 'Không tìm thấy bài tuyển dụng',
+        message: AppMessages.JOB.NOT_FOUND,
         errorCode: 'JOB_NOT_FOUND',
       });
     }
 
-    const trans = job.translations.find((t) => t.lang === lang) || job.translations.find((t) => t.lang === Language.VI);
+    const transMap = new Map(job.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(lang) ?? transMap.get(Language.VI);
 
     const localizedJob = {
       ...job,
@@ -175,14 +176,14 @@ export class JobsService {
         sections: trans?.sections || job.detail?.sections || [],
       },
       alternates: {
-        viSlug: job.translations.find((t) => t.lang === Language.VI)?.slug || job.slug,
-        enSlug: job.translations.find((t) => t.lang === Language.EN)?.slug || null,
+        viSlug: transMap.get(Language.VI)?.slug || job.slug,
+        enSlug: transMap.get(Language.EN)?.slug || null,
       },
     };
 
     try {
       await this.redis.client.set(cacheKey, localizedJob, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
-    } catch (e) {}
+    } catch (e) { }
 
     return localizedJob;
   }
@@ -191,37 +192,49 @@ export class JobsService {
     const job = await this.prisma.jobPost.findUnique({ where: { id: jobId } });
     if (!job) {
       throw new NotFoundException({
-        message: 'Không tìm thấy bài tuyển dụng',
+        message: AppMessages.JOB.NOT_FOUND,
         errorCode: 'JOB_NOT_FOUND',
       });
     }
 
     const slug = dto.slug?.trim() ? dto.slug.trim() : generateSlug(dto.title);
 
-    const translation = await this.prisma.jobPostTranslation.upsert({
-      where: {
-        jobId_lang: { jobId, lang: dto.lang },
-      },
-      update: {
-        title: dto.title,
-        slug,
-        salary: dto.salary !== undefined ? dto.salary : job.salary,
-        sections: dto.sections !== undefined ? dto.sections : undefined,
-      },
-      create: {
-        jobId,
-        lang: dto.lang,
-        title: dto.title,
-        slug,
-        salary: dto.salary || job.salary,
-        sections: dto.sections || [],
-      },
-    });
+    let translation: Awaited<ReturnType<typeof this.prisma.jobPostTranslation.upsert>>;
+    try {
+      translation = await this.prisma.jobPostTranslation.upsert({
+        where: { jobId_lang: { jobId, lang: dto.lang } },
+        update: {
+          title: dto.title,
+          slug,
+          salary: dto.salary !== undefined ? dto.salary : job.salary,
+          sections: dto.sections !== undefined ? dto.sections : undefined,
+        },
+        create: {
+          jobId,
+          lang: dto.lang,
+          title: dto.title,
+          slug,
+          salary: dto.salary || job.salary,
+          sections: dto.sections || [],
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException({
+          message: AppMessages.TRANSLATION.INVALID_LANGUAGE,
+          errorCode: 'TRANSLATION_SLUG_EXISTS',
+        });
+      }
+      throw error;
+    }
 
     try {
       const keys = await this.redis.client.keys('cache:job*');
       if (keys.length > 0) await this.redis.client.del(...keys);
-    } catch (e) {}
+    } catch (e) { }
 
     return translation;
   }
@@ -230,7 +243,7 @@ export class JobsService {
     const existing = await this.prisma.jobPost.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException({
-        message: 'Không tìm thấy bài tuyển dụng',
+        message: AppMessages.JOB.NOT_FOUND,
         errorCode: 'JOB_NOT_FOUND',
       });
     }
@@ -243,7 +256,7 @@ export class JobsService {
       });
       if (slugCheck) {
         throw new ConflictException({
-          message: 'Slug bài đăng đã tồn tại',
+          message: AppMessages.JOB.SLUG_EXISTS,
           errorCode: 'JOB_SLUG_EXISTS',
         });
       }
@@ -277,15 +290,15 @@ export class JobsService {
       const slug = jobData.slug || generateSlug(jobData.title);
       await this.prisma.jobPostTranslation.upsert({
         where: { jobId_lang: { jobId: id, lang: Language.VI } },
-        update: { title: jobData.title, slug, salary: jobData.salary || result.salary, sections: sections || [] },
-        create: { jobId: id, lang: Language.VI, title: jobData.title, slug, salary: jobData.salary || result.salary, sections: sections || [] },
+        update: { title: jobData.title, slug, salary: jobData.salary || result.salary, sections: sections !== undefined ? sections : undefined },
+        create: { jobId: id, lang: Language.VI, title: jobData.title, slug, salary: jobData.salary || result.salary, sections: sections !== undefined ? sections : undefined },
       });
     }
 
     try {
       const keys = await this.redis.client.keys('cache:job*');
       if (keys.length > 0) await this.redis.client.del(...keys);
-    } catch (e) {}
+    } catch (e) { }
     return result;
   }
 
@@ -293,18 +306,18 @@ export class JobsService {
     const existing = await this.prisma.jobPost.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException({
-        message: 'Không tìm thấy bài tuyển dụng',
+        message: AppMessages.JOB.NOT_FOUND,
         errorCode: 'JOB_NOT_FOUND',
       });
     }
     const result = await this.prisma.jobPost.delete({
       where: { id },
     });
-    
+
     try {
       const keys = await this.redis.client.keys('cache:job*');
       if (keys.length > 0) await this.redis.client.del(...keys);
-    } catch (e) {}
+    } catch (e) { }
 
     return result;
   }

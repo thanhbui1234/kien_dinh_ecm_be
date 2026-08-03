@@ -83,6 +83,174 @@ export class UpsertProjectTranslationDto {
   contentDetail?: string;
 }
 
+export class UpsertCompanyInfoTranslationDto {
+  @ApiProperty({ enum: Language, description: 'Ngôn ngữ dịch (VI | EN)' })
+  @IsEnum(Language)
+  lang: Language;
+
+  @ApiProperty({ description: 'Nhãn theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  label: string;
+
+  @ApiProperty({ description: 'Giá trị theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  value: string;
+}
+
+export class UpsertFacilityTranslationDto {
+  @ApiProperty({ enum: Language, description: 'Ngôn ngữ dịch (VI | EN)' })
+  @IsEnum(Language)
+  lang: Language;
+
+  @ApiProperty({ description: 'Tên cơ sở theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @ApiProperty({ description: 'Quốc gia theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  country: string;
+
+  @ApiProperty({ description: 'Địa chỉ theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  address: string;
+}
+
+export class UpsertCompanySloganTranslationDto {
+  @ApiProperty({ enum: Language, description: 'Ngôn ngữ dịch (VI | EN)' })
+  @IsEnum(Language)
+  lang: Language;
+
+  @ApiProperty({ description: 'Tiêu đề slogan theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+
+  @ApiPropertyOptional({ description: 'Mô tả slogan theo ngôn ngữ' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+}
+
+export class UpsertBannerTranslationDto {
+  @ApiProperty({ enum: Language, description: 'Ngôn ngữ dịch (VI | EN)' })
+  @IsEnum(Language)
+  lang: Language;
+
+  @ApiPropertyOptional({ description: 'Tiêu đề banner theo ngôn ngữ' })
+  @IsString()
+  @IsOptional()
+  title?: string;
+
+  @ApiPropertyOptional({ description: 'Mô tả banner theo ngôn ngữ' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+}
+
+export class UpsertCompanyProfileTranslationDto {
+  @ApiProperty({ enum: Language, description: 'Ngôn ngữ dịch (VI | EN)' })
+  @IsEnum(Language)
+  lang: Language;
+
+  @ApiProperty({ description: 'Nội dung introHtml theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  introHtml: string;
+}
+
+export class UpsertHistoryEventTranslationDto {
+  @ApiProperty({ enum: Language, description: 'Ngôn ngữ dịch (VI | EN)' })
+  @IsEnum(Language)
+  lang: Language;
+
+  @ApiProperty({ description: 'Nhãn giai đoạn theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  period: string;
+
+  @ApiProperty({ description: 'Nội dung sự kiện theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  text: string;
+}
+
+export class UpsertCompanyLocationTranslationDto {
+  @ApiProperty({ enum: Language, description: 'Ngôn ngữ dịch (VI | EN)' })
+  @IsEnum(Language)
+  lang: Language;
+
+  @ApiProperty({ description: 'Tên vị trí theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+
+  @ApiProperty({ description: 'Nhãn địa chỉ theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  addressLabel: string;
+
+  @ApiProperty({ description: 'Địa chỉ chi tiết theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  address: string;
+}
+
+export class UpsertContactSettingTranslationDto {
+  @ApiProperty({ enum: Language, description: 'Ngôn ngữ dịch (VI | EN)' })
+  @IsEnum(Language)
+  lang: Language;
+
+  @ApiProperty({ description: 'Tiêu đề khối liên hệ theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+
+  @ApiProperty({ description: 'Mô tả khối liên hệ theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  description: string;
+
+  @ApiPropertyOptional({ description: 'Địa chỉ theo ngôn ngữ' })
+  @IsString()
+  @IsOptional()
+  address?: string;
+
+  @ApiPropertyOptional({ description: 'Giờ làm việc theo ngôn ngữ' })
+  @IsString()
+  @IsOptional()
+  workingHours?: string;
+}
+
+export class UpsertFooterSettingTranslationDto {
+  @ApiProperty({ enum: Language, description: 'Ngôn ngữ dịch (VI | EN)' })
+  @IsEnum(Language)
+  lang: Language;
+
+  @ApiProperty({ description: 'Văn bản giới thiệu footer theo ngôn ngữ' })
+  @IsString()
+  @IsNotEmpty()
+  introText: string;
+
+  @ApiPropertyOptional({ description: 'Địa chỉ theo ngôn ngữ' })
+  @IsString()
+  @IsOptional()
+  address?: string;
+
+  @ApiPropertyOptional({ description: 'Tiêu đề hỗ trợ khách hàng theo ngôn ngữ' })
+  @IsString()
+  @IsOptional()
+  customerSupportTitle?: string;
+
+  @ApiPropertyOptional({ description: 'Danh sách liên kết hỗ trợ theo ngôn ngữ [{label, href}]' })
+  @IsOptional()
+  customerSupportLinks?: any;
+}
+
 export class UpsertJobPostTranslationDto {
   @ApiProperty({ enum: Language, description: 'Ngôn ngữ dịch (VI | EN)' })
   @IsEnum(Language)
