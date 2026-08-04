@@ -238,7 +238,16 @@ export class ProductsService {
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
-        { translations: { some: { name: { contains: search, mode: 'insensitive' } } } },
+        {
+          translations: {
+            some: {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { contentDetail: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
       ];
     }
     if (categoryId) {
@@ -253,10 +262,12 @@ export class ProductsService {
 
     const cacheKey = CACHE_KEYS.PRODUCTS.GET_LIST(filterDto, lang);
 
-    try {
-      const cached = await this.redis.client.get(cacheKey);
-      if (cached) return cached;
-    } catch (error) { }
+    if (!search) {
+      try {
+        const cached = await this.redis.client.get(cacheKey);
+        if (cached) return cached;
+      } catch (error) { }
+    }
 
     let orderBy: Prisma.ProductOrderByWithRelationInput | Prisma.ProductOrderByWithRelationInput[] = { createdAt: 'desc' };
     if (sortBy === 'category') {
@@ -267,7 +278,7 @@ export class ProductsService {
       orderBy = { viewCount: 'desc' };
     }
 
-    const [rawItems, totalItems] = await this.prisma.$transaction([
+    const [rawItems, totalItems] = await Promise.all([
       this.prisma.product.findMany({
         where,
         skip,
@@ -307,9 +318,11 @@ export class ProductsService {
     const pageMetaDto = new PageMetaDto(totalItems, filterDto, items.length);
     const result = new PageDto(items, pageMetaDto);
 
-    try {
-      await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.ONE_HOUR });
-    } catch (error) { }
+    if (!search) {
+      try {
+        await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.ONE_HOUR });
+      } catch (error) { }
+    }
 
     return result;
   }

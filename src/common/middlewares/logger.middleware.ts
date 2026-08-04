@@ -14,9 +14,10 @@ export class LoggerMiddleware implements NestMiddleware {
       const { statusCode } = response;
       const contentLength = response.get('content-length') || 0;
       const duration = Date.now() - startTime;
+      const lang = (request.query.lang as string)?.toUpperCase() || '-';
 
       this.logger.log(
-        `${method} ${originalUrl} ${statusCode} ${contentLength} - ${userAgent} ${ip} [${duration}ms]`,
+        `${method} ${originalUrl} [lang=${lang}] ${statusCode} ${contentLength} - ${userAgent} ${ip} [${duration}ms]`,
       );
     });
 

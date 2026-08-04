@@ -12,7 +12,7 @@ export class ContactSettingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-  ) {}
+  ) { }
 
   private extractMapUrl(input?: string): string | undefined {
     if (!input) return undefined;
@@ -25,7 +25,7 @@ export class ContactSettingService {
     try {
       const keys = await this.redis.client.keys(CACHE_KEYS.CONTACT.PREFIX);
       if (keys.length > 0) await this.redis.client.del(...keys);
-    } catch (e) {}
+    } catch (e) { }
   }
 
   async getContactSetting(lang: Language = Language.VI) {
@@ -33,7 +33,7 @@ export class ContactSettingService {
     try {
       const cached = await this.redis.client.get(cacheKey);
       if (cached) return cached;
-    } catch (e) {}
+    } catch (e) { }
 
     let setting = await this.prisma.contactSetting.findUnique({
       where: { id: 'singleton' },
@@ -66,7 +66,7 @@ export class ContactSettingService {
 
     try {
       await this.redis.client.set(cacheKey, result, { ex: CACHE_TTL.TWENTY_FOUR_HOURS });
-    } catch (e) {}
+    } catch (e) { }
 
     return result;
   }
@@ -84,8 +84,8 @@ export class ContactSettingService {
         id: 'singleton',
         title: processedDto.title ?? 'Liên hệ với chúng tôi',
         description: processedDto.description ?? 'Chúng tôi luôn sẵn sàng lắng nghe và giải đáp mọi thắc mắc của bạn về sản phẩm và dịch vụ. Hãy để lại thông tin, đội ngũ tư vấn sẽ liên hệ với bạn trong thời gian sớm nhất.',
-        hotline: processedDto.hotline ?? '0374 864 110',
-        zalo: processedDto.zalo ?? '0374 864 110',
+        hotline: processedDto.hotline ?? '094320676869',
+        zalo: processedDto.zalo ?? '094320676869',
         email: processedDto.email ?? 'info@kiendinhecm.com',
         address: processedDto.address,
         workingHours: processedDto.workingHours,
