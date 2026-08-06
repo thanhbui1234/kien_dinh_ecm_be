@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
 } from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import {
@@ -20,7 +21,12 @@ import {
   UpdateBannerOrdersDto,
   UpdateBannerDto,
 } from './dto/settings.dto';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  UpsertCompanySloganTranslationDto,
+  UpsertBannerTranslationDto,
+} from '../../common/dto/upsert-translation.dto';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Language } from '@prisma/client';
 import { Public } from '../../common/decorators/public.decorator';
 import {
   ApiSuccessResponse,
@@ -73,6 +79,7 @@ export class SettingsController {
 
   // --- COMPANY SLOGANS ---
   @ApiOperation({ summary: 'Lấy danh sách slogan' })
+  @ApiQuery({ name: 'lang', enum: Language, required: false, description: 'Ngôn ngữ (VI | EN)' })
   @ApiSuccessResponse({
     model: SloganResponseDto,
     isArray: true,
@@ -80,8 +87,8 @@ export class SettingsController {
   })
   @Public()
   @Get('slogans')
-  getSlogans() {
-    return this.settingsService.getSlogans();
+  getSlogans(@Query('lang') lang?: Language) {
+    return this.settingsService.getSlogans(lang ?? Language.VI);
   }
 
   @ApiOperation({ summary: 'Thêm slogan mới' })
@@ -130,8 +137,20 @@ export class SettingsController {
     return this.settingsService.deleteSlogan(id);
   }
 
+  @ApiOperation({ summary: 'Thêm/cập nhật bản dịch slogan (Admin)' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ description: 'Lưu bản dịch thành công' })
+  @Post('slogans/:id/translation')
+  upsertSloganTranslation(
+    @Param('id') id: string,
+    @Body() dto: UpsertCompanySloganTranslationDto,
+  ) {
+    return this.settingsService.upsertSloganTranslation(id, dto);
+  }
+
   // --- BANNERS ---
   @ApiOperation({ summary: 'Lấy danh sách banner trang chủ' })
+  @ApiQuery({ name: 'lang', enum: Language, required: false, description: 'Ngôn ngữ (VI | EN)' })
   @ApiSuccessResponse({
     model: BannerResponseDto,
     isArray: true,
@@ -139,8 +158,8 @@ export class SettingsController {
   })
   @Public()
   @Get('banners')
-  getBanners() {
-    return this.settingsService.getBanners();
+  getBanners(@Query('lang') lang?: Language) {
+    return this.settingsService.getBanners(lang ?? Language.VI);
   }
 
   @ApiOperation({ summary: 'Thêm banner mới' })
@@ -187,5 +206,16 @@ export class SettingsController {
   @Delete('banners/:id')
   deleteBanner(@Param('id') id: string) {
     return this.settingsService.deleteBanner(id);
+  }
+
+  @ApiOperation({ summary: 'Thêm/cập nhật bản dịch banner (Admin)' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ description: 'Lưu bản dịch thành công' })
+  @Post('banners/:id/translation')
+  upsertBannerTranslation(
+    @Param('id') id: string,
+    @Body() dto: UpsertBannerTranslationDto,
+  ) {
+    return this.settingsService.upsertBannerTranslation(id, dto);
   }
 }

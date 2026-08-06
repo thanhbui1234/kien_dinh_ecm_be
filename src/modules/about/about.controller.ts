@@ -6,8 +6,9 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AboutService } from './about.service';
 import {
   UpdateCompanyProfileDto,
@@ -27,6 +28,14 @@ import {
   CompanyLocationResponseDto,
   UpdateCompanyLocationOrdersDto,
 } from './dto/about.dto';
+import {
+  UpsertCompanyProfileTranslationDto,
+  UpsertCompanyInfoTranslationDto,
+  UpsertFacilityTranslationDto,
+  UpsertHistoryEventTranslationDto,
+  UpsertCompanyLocationTranslationDto,
+} from '../../common/dto/upsert-translation.dto';
+import { Language } from '@prisma/client';
 import { Public } from '../../common/decorators/public.decorator';
 import {
   ApiSuccessResponse,
@@ -42,11 +51,12 @@ export class AboutController {
   // ─── Company Profile ────────────────────────────────────────────────────────
 
   @ApiOperation({ summary: 'Lấy thông tin profile trang About' })
+  @ApiQuery({ name: 'lang', enum: Language, required: false, description: 'Ngôn ngữ (VI | EN)' })
   @ApiSuccessResponse({ model: CompanyProfileResponseDto, description: 'Lấy thành công' })
   @Public()
   @Get('profile')
-  getCompanyProfile() {
-    return this.aboutService.getCompanyProfile();
+  getCompanyProfile(@Query('lang') lang?: Language) {
+    return this.aboutService.getCompanyProfile(lang ?? Language.VI);
   }
 
   @ApiOperation({ summary: 'Cập nhật profile trang About (introHtml, thumbnailUrl)' })
@@ -57,9 +67,17 @@ export class AboutController {
     return this.aboutService.updateCompanyProfile(dto);
   }
 
+  @ApiOperation({ summary: 'Thêm/cập nhật bản dịch profile (Admin)' })
+  @ApiBearerAuth('JWT-auth')
+  @Post('profile/translation')
+  upsertCompanyProfileTranslation(@Body() dto: UpsertCompanyProfileTranslationDto) {
+    return this.aboutService.upsertCompanyProfileTranslation(dto);
+  }
+
   // ─── Company Info ───────────────────────────────────────────────────────────
 
   @ApiOperation({ summary: 'Lấy danh sách thông tin giới thiệu công ty' })
+  @ApiQuery({ name: 'lang', enum: Language, required: false, description: 'Ngôn ngữ (VI | EN)' })
   @ApiSuccessResponse({
     model: CompanyInfoResponseDto,
     isArray: true,
@@ -67,8 +85,8 @@ export class AboutController {
   })
   @Public()
   @Get('company-info')
-  getCompanyInfo() {
-    return this.aboutService.getCompanyInfo();
+  getCompanyInfo(@Query('lang') lang?: Language) {
+    return this.aboutService.getCompanyInfo(lang ?? Language.VI);
   }
 
   @ApiOperation({ summary: 'Thêm thông tin giới thiệu công ty' })
@@ -90,11 +108,19 @@ export class AboutController {
     description: 'Cập nhật thành công',
   })
   @Patch('company-info/:id')
-  updateCompanyInfo(
-    @Param('id') id: string,
-    @Body() dto: UpdateCompanyInfoDto,
-  ) {
+  updateCompanyInfo(@Param('id') id: string, @Body() dto: UpdateCompanyInfoDto) {
     return this.aboutService.updateCompanyInfo(id, dto);
+  }
+
+  @ApiOperation({ summary: 'Thêm/cập nhật bản dịch thông tin công ty (Admin)' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ description: 'Lưu bản dịch thành công' })
+  @Post('company-info/:id/translation')
+  upsertCompanyInfoTranslation(
+    @Param('id') id: string,
+    @Body() dto: UpsertCompanyInfoTranslationDto,
+  ) {
+    return this.aboutService.upsertCompanyInfoTranslation(id, dto);
   }
 
   @ApiOperation({ summary: 'Xóa thông tin giới thiệu công ty' })
@@ -111,6 +137,7 @@ export class AboutController {
   // ─── Facilities ─────────────────────────────────────────────────────────────
 
   @ApiOperation({ summary: 'Lấy danh sách cơ sở sản xuất' })
+  @ApiQuery({ name: 'lang', enum: Language, required: false, description: 'Ngôn ngữ (VI | EN)' })
   @ApiSuccessResponse({
     model: FacilityResponseDto,
     isArray: true,
@@ -118,8 +145,8 @@ export class AboutController {
   })
   @Public()
   @Get('facilities')
-  getFacilities() {
-    return this.aboutService.getFacilities();
+  getFacilities(@Query('lang') lang?: Language) {
+    return this.aboutService.getFacilities(lang ?? Language.VI);
   }
 
   @ApiOperation({ summary: 'Thêm cơ sở sản xuất mới' })
@@ -145,6 +172,17 @@ export class AboutController {
     return this.aboutService.updateFacility(id, dto);
   }
 
+  @ApiOperation({ summary: 'Thêm/cập nhật bản dịch cơ sở sản xuất (Admin)' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ description: 'Lưu bản dịch thành công' })
+  @Post('facilities/:id/translation')
+  upsertFacilityTranslation(
+    @Param('id') id: string,
+    @Body() dto: UpsertFacilityTranslationDto,
+  ) {
+    return this.aboutService.upsertFacilityTranslation(id, dto);
+  }
+
   @ApiOperation({ summary: 'Xóa cơ sở sản xuất' })
   @ApiBearerAuth('JWT-auth')
   @ApiSuccessResponse({
@@ -159,6 +197,7 @@ export class AboutController {
   // ─── Company History Events ──────────────────────────────────────────────────
 
   @ApiOperation({ summary: 'Lấy danh sách sự kiện lịch sử công ty' })
+  @ApiQuery({ name: 'lang', enum: Language, required: false, description: 'Ngôn ngữ (VI | EN)' })
   @ApiSuccessResponse({
     model: CompanyHistoryEventResponseDto,
     isArray: true,
@@ -166,8 +205,8 @@ export class AboutController {
   })
   @Public()
   @Get('history-events')
-  getHistoryEvents() {
-    return this.aboutService.getHistoryEvents();
+  getHistoryEvents(@Query('lang') lang?: Language) {
+    return this.aboutService.getHistoryEvents(lang ?? Language.VI);
   }
 
   @ApiOperation({ summary: 'Thêm sự kiện lịch sử' })
@@ -205,6 +244,17 @@ export class AboutController {
     return this.aboutService.updateHistoryEvent(id, dto);
   }
 
+  @ApiOperation({ summary: 'Thêm/cập nhật bản dịch sự kiện lịch sử (Admin)' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ description: 'Lưu bản dịch thành công' })
+  @Post('history-events/:id/translation')
+  upsertHistoryEventTranslation(
+    @Param('id') id: string,
+    @Body() dto: UpsertHistoryEventTranslationDto,
+  ) {
+    return this.aboutService.upsertHistoryEventTranslation(id, dto);
+  }
+
   @ApiOperation({ summary: 'Xóa sự kiện lịch sử' })
   @ApiBearerAuth('JWT-auth')
   @ApiSuccessResponse({
@@ -219,6 +269,7 @@ export class AboutController {
   // ─── Company Locations ───────────────────────────────────────────────────────
 
   @ApiOperation({ summary: 'Lấy danh sách vị trí công ty / nhà máy' })
+  @ApiQuery({ name: 'lang', enum: Language, required: false, description: 'Ngôn ngữ (VI | EN)' })
   @ApiSuccessResponse({
     model: CompanyLocationResponseDto,
     isArray: true,
@@ -226,8 +277,8 @@ export class AboutController {
   })
   @Public()
   @Get('locations')
-  getCompanyLocations() {
-    return this.aboutService.getCompanyLocations();
+  getCompanyLocations(@Query('lang') lang?: Language) {
+    return this.aboutService.getCompanyLocations(lang ?? Language.VI);
   }
 
   @ApiOperation({ summary: 'Thêm vị trí công ty / nhà máy mới' })
@@ -261,11 +312,19 @@ export class AboutController {
     description: 'Cập nhật thành công',
   })
   @Patch('locations/:id')
-  updateCompanyLocation(
-    @Param('id') id: string,
-    @Body() dto: UpdateCompanyLocationDto,
-  ) {
+  updateCompanyLocation(@Param('id') id: string, @Body() dto: UpdateCompanyLocationDto) {
     return this.aboutService.updateCompanyLocation(id, dto);
+  }
+
+  @ApiOperation({ summary: 'Thêm/cập nhật bản dịch vị trí công ty (Admin)' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiSuccessResponse({ description: 'Lưu bản dịch thành công' })
+  @Post('locations/:id/translation')
+  upsertCompanyLocationTranslation(
+    @Param('id') id: string,
+    @Body() dto: UpsertCompanyLocationTranslationDto,
+  ) {
+    return this.aboutService.upsertCompanyLocationTranslation(id, dto);
   }
 
   @ApiOperation({ summary: 'Xóa vị trí công ty / nhà máy' })
@@ -279,4 +338,3 @@ export class AboutController {
     return this.aboutService.deleteCompanyLocation(id);
   }
 }
-

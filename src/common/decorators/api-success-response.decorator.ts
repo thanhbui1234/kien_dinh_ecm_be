@@ -7,44 +7,53 @@ import { PageDto } from '../dto/pagination.dto';
  * Decorator chuẩn hóa định dạng Swagger trả về thành công (200/201).
  * Hỗ trợ Data Object hoặc Data Array.
  */
-export const ApiSuccessResponse = <TModel extends Type<any>>(
+export const ApiSuccessResponse = <TModel extends Type<any> = any>(
   options: {
-    model: TModel;
+    model?: TModel;
     isArray?: boolean;
     isPaginated?: boolean;
     description?: string;
     status?: number;
-  }
+  } = {}
 ) => {
   const { model, isArray = false, isPaginated = false, description = 'Success', status = 200 } = options;
 
   let dataSchema: any;
 
-  if (isPaginated) {
-    dataSchema = {
-      allOf: [
-        { $ref: getSchemaPath(PageDto) },
-        {
-          properties: {
-            data: {
-              type: 'array',
-              items: { $ref: getSchemaPath(model) },
+  if (model) {
+    if (isPaginated) {
+      dataSchema = {
+        allOf: [
+          { $ref: getSchemaPath(PageDto) },
+          {
+            properties: {
+              data: {
+                type: 'array',
+                items: { $ref: getSchemaPath(model) },
+              },
             },
           },
-        },
-      ],
-    };
-  } else if (isArray) {
-    dataSchema = {
-      type: 'array',
-      items: { $ref: getSchemaPath(model) },
-    };
+        ],
+      };
+    } else if (isArray) {
+      dataSchema = {
+        type: 'array',
+        items: { $ref: getSchemaPath(model) },
+      };
+    } else {
+      dataSchema = { $ref: getSchemaPath(model) };
+    }
   } else {
-    dataSchema = { $ref: getSchemaPath(model) };
+    dataSchema = { nullable: true };
+  }
+
+  const extraModels: any[] = [ApiResponseDto, ApiErrorResponseDto, PageDto];
+  if (model) {
+    extraModels.push(model);
   }
 
   const decorators = [
-    ApiExtraModels(ApiResponseDto, ApiErrorResponseDto, PageDto, model),
+    ApiExtraModels(...extraModels),
     ApiResponse({
       status,
       description,

@@ -1,84 +1,91 @@
 export const CACHE_TTL = {
   ONE_HOUR: 3600,
   TWELVE_HOURS: 43200,
-  TWENTY_FOUR_HOURS: 86400, // 24 hours
-  SEVEN_DAYS: 604800, // 7 days
+  TWENTY_FOUR_HOURS: 86400,
+  SEVEN_DAYS: 604800,
 };
 
 export const CACHE_KEYS = {
   // --- ABOUT ---
   ABOUT: {
-    COMPANY_PROFILE: 'about:company_profile',
-    COMPANY_INFO: 'about:company_info',
-    FACILITIES: 'about:facilities',
-    HISTORY_EVENTS: 'about:history_events',
-    COMPANY_LOCATIONS: 'about:company_locations',
+    COMPANY_PROFILE: (lang: string = 'VI') => `cache:about:company_profile:${lang}`,
+    COMPANY_INFO: (lang: string = 'VI') => `cache:about:company_info:${lang}`,
+    FACILITIES: (lang: string = 'VI') => `cache:about:facilities:${lang}`,
+    HISTORY_EVENTS: (lang: string = 'VI') => `cache:about:history_events:${lang}`,
+    COMPANY_LOCATIONS: (lang: string = 'VI') => `cache:about:company_locations:${lang}`,
+    LIST_PREFIX: 'cache:about:*',
   },
 
   // --- SETTINGS ---
   SETTINGS: {
-    SYSTEM: 'system:settings',
-    COMPANY_SLOGANS: 'system:company_slogans',
-    BANNERS: 'system:banners',
+    SYSTEM: 'cache:system:settings',
+    COMPANY_SLOGANS: (lang: string = 'VI') => `cache:system:company_slogans:${lang}`,
+    BANNERS: (lang: string = 'VI') => `cache:system:banners:${lang}`,
+    LIST_PREFIX: 'cache:system:company_slogans:*',
+    BANNERS_PREFIX: 'cache:system:banners:*',
   },
 
   // --- CONTACT ---
   CONTACT: {
-    SETTING: 'contact:setting',
+    SETTING: (lang: string = 'VI') => `cache:contact:setting:${lang}`,
+    PREFIX: 'cache:contact:setting:*',
   },
 
   // --- FOOTER ---
   FOOTER: {
-    SETTING: 'footer:setting',
+    SETTING: (lang: string = 'VI') => `cache:footer:setting:${lang}`,
+    PREFIX: 'cache:footer:setting:*',
   },
 
   // --- CATEGORIES ---
   CATEGORIES: {
-    FLAT: 'categories:flat',
+    LIST_PREFIX: 'cache:categories:*',
+    FLAT: (lang: string = 'VI') => `cache:categories:flat:${lang}`,
+    DETAIL: (idOrSlug: string, lang: string = 'VI') => `cache:categories:detail:${lang}:${idOrSlug}`,
   },
 
   // --- PRODUCTS ---
   PRODUCTS: {
-    LIST_PREFIX: 'products:list:*',
-    GET_LIST: (filters: any) => {
+    LIST_PREFIX: 'cache:product*',
+    GET_LIST: (filters: any, lang: string = 'VI') => {
       const sortedFilters = Object.keys(filters || {})
         .sort()
         .reduce((acc, key) => {
           if (filters[key] !== undefined) acc[key] = filters[key];
           return acc;
         }, {} as any);
-      return `products:list:${JSON.stringify(sortedFilters)}`;
+      return `cache:products:list:${lang}:${JSON.stringify(sortedFilters)}`;
     },
-    DETAIL: (idOrSlug: string) => `product:detail:${idOrSlug}`,
+    DETAIL: (idOrSlug: string, lang: string = 'VI') => `cache:product:detail:${lang}:${idOrSlug}`,
   },
 
   // --- PROJECTS ---
   PROJECTS: {
-    LIST_PREFIX: 'projects:list:*',
-    GET_LIST: (filters: any) => {
+    LIST_PREFIX: 'cache:project*',
+    GET_LIST: (filters: any, lang: string = 'VI') => {
       const sortedFilters = Object.keys(filters || {})
         .sort()
         .reduce((acc, key) => {
           if (filters[key] !== undefined) acc[key] = filters[key];
           return acc;
         }, {} as any);
-      return `projects:list:${JSON.stringify(sortedFilters)}`;
+      return `cache:projects:list:${lang}:${JSON.stringify(sortedFilters)}`;
     },
-    DETAIL: (id: string) => `project:detail:${id}`,
+    DETAIL: (idOrSlug: string, lang: string = 'VI') => `cache:project:detail:${lang}:${idOrSlug}`,
   },
 
   // --- JOBS ---
   JOBS: {
-    LIST_PREFIX: 'jobs:list:*',
-    GET_LIST: (filters: any) => {
+    LIST_PREFIX: 'cache:job*',
+    GET_LIST: (filters: any, lang: string = 'VI') => {
       const sortedFilters = Object.keys(filters || {})
         .sort()
         .reduce((acc, key) => {
           if (filters[key] !== undefined) acc[key] = filters[key];
           return acc;
         }, {} as any);
-      return `jobs:list:${JSON.stringify(sortedFilters)}`;
+      return `cache:jobs:list:${lang}:${JSON.stringify(sortedFilters)}`;
     },
-    DETAIL: (idOrSlug: string) => `job:detail:${idOrSlug}`,
+    DETAIL: (idOrSlug: string, lang: string = 'VI') => `cache:job:detail:${lang}:${idOrSlug}`,
   },
 };

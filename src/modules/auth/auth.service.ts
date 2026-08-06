@@ -91,8 +91,9 @@ export class AuthService {
 
     // 3. Nếu là thiết bị mới hoàn toàn -> Kiểm tra giới hạn 3 thiết bị
     if (!isKnownDevice && (currentDevId || currentFp)) {
-      if (existingDevices.length >= 2) {
+      if (existingDevices.length >= 2 && user.role !== 'SUPER_ADMIN') {
         // Thiết bị thứ 3 xuất hiện -> TỰ ĐỘNG KHÓA TÀI KHOẢN & KICK SẠCH SESSION
+        // SUPER_ADMIN được miễn trừ: không bao giờ bị khóa tự động
         const randomPassHash = await HashUtil.hash(randomUUID());
         await this.usersService.lockUser(user.id, randomPassHash);
         await this.redisService.client.del(`user_sessions:${user.id}`);

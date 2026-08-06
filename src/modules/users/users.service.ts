@@ -16,7 +16,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
-  ) {}
+  ) { }
 
   /**
    * Tìm user theo email (Phục vụ đăng nhập).

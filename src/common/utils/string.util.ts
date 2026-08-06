@@ -1,3 +1,9 @@
+const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+export function isUuid(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
+
 export function generateSlug(text: string): string {
   if (!text) return '';
   return text
