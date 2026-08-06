@@ -105,6 +105,11 @@ export const AppMessages = {
     NOT_FOUND: 'Không tìm thấy cấu hình footer.',
   },
 
+  // Lead / Contact Request Messages
+  LEAD: {
+    NOT_FOUND: 'Không tìm thấy yêu cầu liên hệ.',
+  },
+
   // Translation i18n Messages
   TRANSLATION: {
     UPSERT_SUCCESS: 'Lưu bản dịch thành công.',

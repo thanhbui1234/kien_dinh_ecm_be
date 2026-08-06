@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI, FunctionDeclaration, Type } from '@google/genai';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis.service';
+import { Language } from '@prisma/client';
 import { AiChatDto } from './dto/ai-chat.dto';
 import { AiChatResponseDto } from './dto/ai-chat-response.dto';
 import {
@@ -283,18 +284,18 @@ export class AiService {
       const unaccentedTerms = rawTerms.map((t) => removeVietnameseAccents(t));
 
       where.OR = [
-        { name: { contains: cleanQ, mode: 'insensitive' } },
-        { name: { contains: unaccentedQ, mode: 'insensitive' } },
-        { slug: { contains: slugQ, mode: 'insensitive' } },
-        { slug: { contains: unaccentedQ.toLowerCase(), mode: 'insensitive' } },
-        { slug: { contains: compactQ, mode: 'insensitive' } },
-        { category: { name: { contains: cleanQ, mode: 'insensitive' } } },
-        { category: { name: { contains: unaccentedQ, mode: 'insensitive' } } },
-        ...rawTerms.map((t) => ({ name: { contains: t, mode: 'insensitive' } })),
-        ...unaccentedTerms.map((t) => ({ name: { contains: t, mode: 'insensitive' } })),
-        ...unaccentedTerms.map((t) => ({ slug: { contains: t, mode: 'insensitive' } })),
-        ...rawTerms.map((t) => ({ category: { name: { contains: t, mode: 'insensitive' } } })),
-        ...unaccentedTerms.map((t) => ({ category: { name: { contains: t, mode: 'insensitive' } } })),
+        { translations: { some: { name: { contains: cleanQ, mode: 'insensitive' } } } },
+        { translations: { some: { name: { contains: unaccentedQ, mode: 'insensitive' } } } },
+        { translations: { some: { slug: { contains: slugQ, mode: 'insensitive' } } } },
+        { translations: { some: { slug: { contains: unaccentedQ.toLowerCase(), mode: 'insensitive' } } } },
+        { translations: { some: { slug: { contains: compactQ, mode: 'insensitive' } } } },
+        { category: { translations: { some: { name: { contains: cleanQ, mode: 'insensitive' } } } } },
+        { category: { translations: { some: { name: { contains: unaccentedQ, mode: 'insensitive' } } } } },
+        ...rawTerms.map((t) => ({ translations: { some: { name: { contains: t, mode: 'insensitive' as const } } } } )),
+        ...unaccentedTerms.map((t) => ({ translations: { some: { name: { contains: t, mode: 'insensitive' as const } } } })),
+        ...unaccentedTerms.map((t) => ({ translations: { some: { slug: { contains: t, mode: 'insensitive' as const } } } })),
+        ...rawTerms.map((t) => ({ category: { translations: { some: { name: { contains: t, mode: 'insensitive' as const } } } } })),
+        ...unaccentedTerms.map((t) => ({ category: { translations: { some: { name: { contains: t, mode: 'insensitive' as const } } } } })),
       ];
     }
 
@@ -302,24 +303,26 @@ export class AiService {
       where.price = { lte: Number(maxPrice) };
     }
 
+    const productSelect = {
+      id: true,
+      price: true,
+      thumbnailUrl: true,
+      translations: {
+        where: { lang: Language.VI },
+        take: 1,
+        select: { name: true, slug: true, contentDetail: true, specifications: true, features: true },
+      },
+      category: {
+        select: {
+          translations: { where: { lang: Language.VI }, take: 1, select: { name: true } },
+        },
+      },
+    } as const;
+
     let products = await this.prisma.product.findMany({
       where,
       take: 5,
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        price: true,
-        thumbnailUrl: true,
-        category: { select: { name: true } },
-        detail: {
-          select: {
-            contentDetail: true,
-            specifications: true,
-            features: true,
-          },
-        },
-      },
+      select: productSelect,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -327,40 +330,29 @@ export class AiService {
       products = await this.prisma.product.findMany({
         where: { status: true },
         take: 5,
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          price: true,
-          thumbnailUrl: true,
-          category: { select: { name: true } },
-          detail: {
-            select: {
-              contentDetail: true,
-              specifications: true,
-              features: true,
-            },
-          },
-        },
+        select: productSelect,
         orderBy: { createdAt: 'desc' },
       });
     }
 
     return {
       total: products.length,
-      products: products.map((p) => ({
-        name: p.name,
-        priceFormatted: p.price
-          ? `${p.price.toLocaleString('vi-VN')} VNĐ`
-          : AI_MESSAGES.CONTACT_PRICE_FALLBACK,
-        category: p.category?.name,
-        thumbnailUrl: p.thumbnailUrl,
-        specifications: p.detail?.specifications || null,
-        features: p.detail?.features || null,
-        detailSummary: p.detail?.contentDetail
-          ? p.detail.contentDetail.replace(/<[^>]*>?/gm, '').substring(0, 300)
-          : null,
-      })),
+      products: products.map((p) => {
+        const trans = p.translations[0];
+        return {
+          name: trans?.name,
+          priceFormatted: p.price
+            ? `${p.price.toLocaleString('vi-VN')} VNĐ`
+            : AI_MESSAGES.CONTACT_PRICE_FALLBACK,
+          category: p.category?.translations[0]?.name,
+          thumbnailUrl: p.thumbnailUrl,
+          specifications: trans?.specifications || null,
+          features: trans?.features || null,
+          detailSummary: trans?.contentDetail
+            ? trans.contentDetail.replace(/<[^>]*>?/gm, '').substring(0, 300)
+            : null,
+        };
+      }),
     };
   }
 
@@ -375,9 +367,9 @@ export class AiService {
       const cleanQ = String(query).trim();
       const unaccentedQ = removeVietnameseAccents(cleanQ);
       where.OR = [
-        { name: { contains: cleanQ, mode: 'insensitive' } },
-        { name: { contains: unaccentedQ, mode: 'insensitive' } },
-        { slug: { contains: unaccentedQ.toLowerCase(), mode: 'insensitive' } },
+        { translations: { some: { name: { contains: cleanQ, mode: 'insensitive' } } } },
+        { translations: { some: { name: { contains: unaccentedQ, mode: 'insensitive' } } } },
+        { translations: { some: { slug: { contains: unaccentedQ.toLowerCase(), mode: 'insensitive' } } } },
       ];
     }
 
@@ -386,9 +378,8 @@ export class AiService {
       take: 10,
       select: {
         id: true,
-        name: true,
-        slug: true,
         imageUrl: true,
+        translations: { where: { lang: Language.VI }, take: 1, select: { name: true, slug: true } },
       },
       orderBy: { orderIndex: 'asc' },
     });
@@ -396,8 +387,8 @@ export class AiService {
     return {
       total: categories.length,
       categories: categories.map((c) => ({
-        name: c.name,
-        slug: c.slug,
+        name: c.translations[0]?.name,
+        slug: c.translations[0]?.slug,
         imageUrl: c.imageUrl,
       })),
     };
@@ -414,24 +405,28 @@ export class AiService {
       const cleanQ = String(query).trim();
       const unaccentedQ = removeVietnameseAccents(cleanQ);
       where.OR = [
-        { name: { contains: cleanQ, mode: 'insensitive' } },
-        { name: { contains: unaccentedQ, mode: 'insensitive' } },
-        { description: { contains: cleanQ, mode: 'insensitive' } },
-        { description: { contains: unaccentedQ, mode: 'insensitive' } },
+        { translations: { some: { name: { contains: cleanQ, mode: 'insensitive' } } } },
+        { translations: { some: { name: { contains: unaccentedQ, mode: 'insensitive' } } } },
+        { translations: { some: { description: { contains: cleanQ, mode: 'insensitive' } } } },
+        { translations: { some: { description: { contains: unaccentedQ, mode: 'insensitive' } } } },
       ];
     }
+
+    const projectSelect = {
+      id: true,
+      coverImage: true,
+      isFeatured: true,
+      translations: {
+        where: { lang: Language.VI },
+        take: 1,
+        select: { name: true, slug: true, description: true },
+      },
+    } as const;
 
     let projects = await this.prisma.project.findMany({
       where,
       take: 5,
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        description: true,
-        coverImage: true,
-        isFeatured: true,
-      },
+      select: projectSelect,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -439,27 +434,23 @@ export class AiService {
       projects = await this.prisma.project.findMany({
         where: { status: true },
         take: 5,
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          description: true,
-          coverImage: true,
-          isFeatured: true,
-        },
+        select: projectSelect,
         orderBy: { createdAt: 'desc' },
       });
     }
 
     return {
       total: projects.length,
-      projects: projects.map((pj) => ({
-        name: pj.name,
-        description: pj.description,
-        slug: pj.slug,
-        coverImage: pj.coverImage,
-        isFeatured: pj.isFeatured,
-      })),
+      projects: projects.map((pj) => {
+        const trans = pj.translations[0];
+        return {
+          name: trans?.name,
+          description: trans?.description,
+          slug: trans?.slug,
+          coverImage: pj.coverImage,
+          isFeatured: pj.isFeatured,
+        };
+      }),
     };
   }
 
@@ -474,9 +465,9 @@ export class AiService {
       const cleanQ = String(query).trim();
       const unaccentedQ = removeVietnameseAccents(cleanQ);
       where.OR = [
-        { title: { contains: cleanQ, mode: 'insensitive' } },
-        { title: { contains: unaccentedQ, mode: 'insensitive' } },
-        { slug: { contains: unaccentedQ.toLowerCase(), mode: 'insensitive' } },
+        { translations: { some: { title: { contains: cleanQ, mode: 'insensitive' } } } },
+        { translations: { some: { title: { contains: unaccentedQ, mode: 'insensitive' } } } },
+        { translations: { some: { slug: { contains: unaccentedQ.toLowerCase(), mode: 'insensitive' } } } },
       ];
     }
 
@@ -485,10 +476,8 @@ export class AiService {
       take: 10,
       select: {
         id: true,
-        title: true,
-        slug: true,
-        salary: true,
         createdAt: true,
+        translations: { where: { lang: Language.VI }, take: 1, select: { title: true, slug: true, salary: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -497,9 +486,9 @@ export class AiService {
       total: jobs.length,
       jobs: jobs.map((j) => ({
         jobId: j.id,
-        title: j.title,
-        salary: j.salary,
-        slug: j.slug,
+        title: j.translations[0]?.title,
+        salary: j.translations[0]?.salary,
+        slug: j.translations[0]?.slug,
       })),
     };
   }
@@ -510,30 +499,53 @@ export class AiService {
   private async handleGetAboutCompany(): Promise<any> {
     const profile = await this.prisma.companyProfile.findUnique({
       where: { id: 'singleton' },
+      include: { translations: { where: { lang: Language.VI }, take: 1 } },
     });
 
     const facilities = await this.prisma.facility.findMany({
       orderBy: { orderIndex: 'asc' },
-      select: { name: true, address: true, phone: true, country: true },
+      select: {
+        phone: true,
+        translations: { where: { lang: Language.VI }, take: 1, select: { name: true, address: true, country: true } },
+      },
     });
 
     const historyEvents = await this.prisma.companyHistoryEvent.findMany({
       orderBy: { orderIndex: 'asc' },
-      select: { year: true, period: true, text: true },
+      select: {
+        year: true,
+        translations: { where: { lang: Language.VI }, take: 1, select: { period: true, text: true } },
+      },
     });
 
     const slogan = await this.prisma.companySlogan.findMany({
       orderBy: { orderIndex: 'asc' },
-      select: { title: true, description: true },
+      select: {
+        translations: { where: { lang: Language.VI }, take: 1, select: { title: true, description: true } },
+      },
     });
 
+    const introHtml = profile?.translations[0]?.introHtml;
+
     return {
-      introSummary: profile?.introHtml
-        ? profile.introHtml.replace(/<[^>]*>?/gm, '').substring(0, 300)
+      introSummary: introHtml
+        ? introHtml.replace(/<[^>]*>?/gm, '').substring(0, 300)
         : 'Công ty Cổ phần Thanh Bằng là đơn vị hàng đầu chế tạo máy công cụ, máy ép gạch.',
-      facilities,
-      historyEvents,
-      slogans: slogan,
+      facilities: facilities.map((f) => ({
+        name: f.translations[0]?.name,
+        address: f.translations[0]?.address,
+        country: f.translations[0]?.country,
+        phone: f.phone,
+      })),
+      historyEvents: historyEvents.map((h) => ({
+        year: h.year,
+        period: h.translations[0]?.period,
+        text: h.translations[0]?.text,
+      })),
+      slogans: slogan.map((s) => ({
+        title: s.translations[0]?.title,
+        description: s.translations[0]?.description,
+      })),
     };
   }
 

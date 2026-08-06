@@ -44,6 +44,10 @@ export class AboutService {
       const keys = await this.redis.client.keys(CACHE_KEYS.ABOUT.LIST_PREFIX);
       if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) {}
+    try {
+      const aiKeys = await this.redis.client.keys('ai:tool:getAboutCompany:*');
+      if (aiKeys.length > 0) await this.redis.client.del(...aiKeys);
+    } catch (e) {}
   }
 
   // ─── Company Profile ────────────────────────────────────────────────────────
@@ -58,7 +62,7 @@ export class AboutService {
     const profile = await this.prisma.companyProfile.upsert({
       where: { id: 'singleton' },
       update: {},
-      create: { id: 'singleton', introHtml: '' },
+      create: { id: 'singleton' },
       include: { translations: true },
     });
 
@@ -66,7 +70,7 @@ export class AboutService {
     const trans = transMap.get(lang) ?? transMap.get(Language.VI);
     const result = {
       ...profile,
-      introHtml: trans?.introHtml ?? profile.introHtml,
+      introHtml: trans?.introHtml || '',
     };
 
     try {
@@ -77,22 +81,32 @@ export class AboutService {
   }
 
   async updateCompanyProfile(dto: UpdateCompanyProfileDto) {
-    const result = await this.prisma.companyProfile.upsert({
+    const { introHtml, ...profileData } = dto;
+
+    await this.prisma.companyProfile.upsert({
       where: { id: 'singleton' },
-      update: dto,
-      create: { id: 'singleton', introHtml: dto.introHtml ?? '', thumbnailUrl: dto.thumbnailUrl },
+      update: profileData,
+      create: { id: 'singleton', ...profileData },
     });
 
-    if (dto.introHtml) {
+    if (introHtml !== undefined) {
       await this.prisma.companyProfileTranslation.upsert({
         where: { profileId_lang: { profileId: 'singleton', lang: Language.VI } },
-        update: { introHtml: dto.introHtml },
-        create: { profileId: 'singleton', lang: Language.VI, introHtml: dto.introHtml },
+        update: { introHtml },
+        create: { profileId: 'singleton', lang: Language.VI, introHtml },
       });
     }
 
     await this.invalidateAboutCache();
-    return result;
+
+    // Re-fetch after upsert so introHtml in response is up-to-date
+    const profile = await this.prisma.companyProfile.findUnique({
+      where: { id: 'singleton' },
+      include: { translations: true },
+    });
+    const transMap = new Map(profile!.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(Language.VI);
+    return { ...profile!, introHtml: trans?.introHtml || '' };
   }
 
   async upsertCompanyProfileTranslation(dto: UpsertCompanyProfileTranslationDto) {
@@ -144,8 +158,8 @@ export class AboutService {
       const trans = transMap.get(lang) ?? transMap.get(Language.VI);
       return {
         ...item,
-        label: trans?.label ?? item.label,
-        value: trans?.value ?? item.value,
+        label: trans?.label || '',
+        value: trans?.value || '',
       };
     });
 
@@ -157,18 +171,20 @@ export class AboutService {
   }
 
   async createCompanyInfo(dto: CreateCompanyInfoDto) {
+    const { label, value, ...companyInfoData } = dto;
     const result = await this.prisma.$transaction(async (tx) => {
-      if (dto.orderIndex === undefined) {
+      if (companyInfoData.orderIndex === undefined) {
         const max = await tx.companyInfo.aggregate({ _max: { orderIndex: true } });
-        dto.orderIndex = (max._max.orderIndex ?? 0) + 1;
+        companyInfoData.orderIndex = (max._max.orderIndex ?? 0) + 1;
       }
       return tx.companyInfo.create({
         data: {
-          ...dto,
+          ...companyInfoData,
           translations: {
-            create: [{ lang: Language.VI, label: dto.label, value: dto.value }],
+            create: [{ lang: Language.VI, label, value }],
           },
         },
+        include: { translations: true },
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     await this.invalidateAboutCache();
@@ -176,25 +192,42 @@ export class AboutService {
   }
 
   async updateCompanyInfo(id: string, dto: UpdateCompanyInfoDto) {
-    const existing = await this.prisma.companyInfo.findUnique({ where: { id } });
+    const existing = await this.prisma.companyInfo.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
     if (!existing) {
       throw new NotFoundException({
         message: AppMessages.COMPANY_INFO.NOT_FOUND,
         errorCode: 'COMPANY_INFO_NOT_FOUND',
       });
     }
-    const result = await this.prisma.companyInfo.update({ where: { id }, data: dto });
+    const currentViTranslation = existing.translations.find((t) => t.lang === Language.VI);
+    const { label, value, ...companyInfoData } = dto;
+    await this.prisma.companyInfo.update({ where: { id }, data: companyInfoData });
 
-    if (dto.label || dto.value) {
+    if (label !== undefined || value !== undefined) {
       await this.prisma.companyInfoTranslation.upsert({
         where: { companyInfoId_lang: { companyInfoId: id, lang: Language.VI } },
-        update: { label: dto.label ?? existing.label, value: dto.value ?? existing.value },
-        create: { companyInfoId: id, lang: Language.VI, label: dto.label ?? existing.label, value: dto.value ?? existing.value },
+        update: { label: label ?? currentViTranslation?.label, value: value ?? currentViTranslation?.value },
+        create: {
+          companyInfoId: id,
+          lang: Language.VI,
+          label: label ?? currentViTranslation?.label ?? '',
+          value: value ?? currentViTranslation?.value ?? '',
+        },
       });
     }
 
     await this.invalidateAboutCache();
-    return result;
+
+    const updated = await this.prisma.companyInfo.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
+    const transMap = new Map(updated!.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(Language.VI);
+    return { ...updated!, label: trans?.label || '', value: trans?.value || '' };
   }
 
   async upsertCompanyInfoTranslation(id: string, dto: UpsertCompanyInfoTranslationDto) {
@@ -259,9 +292,9 @@ export class AboutService {
       const trans = transMap.get(lang) ?? transMap.get(Language.VI);
       return {
         ...item,
-        name: trans?.name ?? item.name,
-        country: trans?.country ?? item.country,
-        address: trans?.address ?? item.address,
+        name: trans?.name || '',
+        country: trans?.country || '',
+        address: trans?.address || '',
       };
     });
 
@@ -273,18 +306,20 @@ export class AboutService {
   }
 
   async createFacility(dto: CreateFacilityDto) {
+    const { name, country, address, ...facilityData } = dto;
     const result = await this.prisma.$transaction(async (tx) => {
-      if (dto.orderIndex === undefined) {
+      if (facilityData.orderIndex === undefined) {
         const max = await tx.facility.aggregate({ _max: { orderIndex: true } });
-        dto.orderIndex = (max._max.orderIndex ?? 0) + 1;
+        facilityData.orderIndex = (max._max.orderIndex ?? 0) + 1;
       }
       return tx.facility.create({
         data: {
-          ...dto,
+          ...facilityData,
           translations: {
-            create: [{ lang: Language.VI, name: dto.name, country: dto.country, address: dto.address }],
+            create: [{ lang: Language.VI, name, country, address }],
           },
         },
+        include: { translations: true },
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     await this.invalidateAboutCache();
@@ -292,33 +327,47 @@ export class AboutService {
   }
 
   async updateFacility(id: string, dto: UpdateFacilityDto) {
-    const existing = await this.prisma.facility.findUnique({ where: { id } });
+    const existing = await this.prisma.facility.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
     if (!existing) {
       throw new NotFoundException({
         message: AppMessages.FACILITY.NOT_FOUND,
         errorCode: 'FACILITY_NOT_FOUND',
       });
     }
-    const result = await this.prisma.facility.update({ where: { id }, data: dto });
+    const currentViTranslation = existing.translations.find((t) => t.lang === Language.VI);
+    const { name, country, address, ...facilityData } = dto;
+    await this.prisma.facility.update({ where: { id }, data: facilityData });
 
-    await this.prisma.facilityTranslation.upsert({
-      where: { facilityId_lang: { facilityId: id, lang: Language.VI } },
-      update: {
-        name: dto.name ?? existing.name,
-        country: dto.country ?? existing.country,
-        address: dto.address ?? existing.address,
-      },
-      create: {
-        facilityId: id,
-        lang: Language.VI,
-        name: dto.name ?? existing.name,
-        country: dto.country ?? existing.country,
-        address: dto.address ?? existing.address,
-      },
-    });
+    if (name !== undefined || country !== undefined || address !== undefined) {
+      await this.prisma.facilityTranslation.upsert({
+        where: { facilityId_lang: { facilityId: id, lang: Language.VI } },
+        update: {
+          name: name ?? currentViTranslation?.name,
+          country: country ?? currentViTranslation?.country,
+          address: address ?? currentViTranslation?.address,
+        },
+        create: {
+          facilityId: id,
+          lang: Language.VI,
+          name: name ?? currentViTranslation?.name ?? '',
+          country: country ?? currentViTranslation?.country ?? '',
+          address: address ?? currentViTranslation?.address ?? '',
+        },
+      });
+    }
 
     await this.invalidateAboutCache();
-    return result;
+
+    const updated = await this.prisma.facility.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
+    const transMap = new Map(updated!.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(Language.VI);
+    return { ...updated!, name: trans?.name || '', country: trans?.country || '', address: trans?.address || '' };
   }
 
   async upsertFacilityTranslation(id: string, dto: UpsertFacilityTranslationDto) {
@@ -374,7 +423,7 @@ export class AboutService {
     } catch (e) {}
 
     const items = await this.prisma.companyHistoryEvent.findMany({
-      orderBy: [{ period: 'asc' }, { orderIndex: 'asc' }],
+      orderBy: [{ year: 'asc' }, { orderIndex: 'asc' }],
       include: { translations: true },
     });
 
@@ -383,8 +432,8 @@ export class AboutService {
       const trans = transMap.get(lang) ?? transMap.get(Language.VI);
       return {
         ...item,
-        period: trans?.period ?? item.period,
-        text: trans?.text ?? item.text,
+        period: trans?.period || '',
+        text: trans?.text || '',
       };
     });
 
@@ -396,18 +445,20 @@ export class AboutService {
   }
 
   async createHistoryEvent(dto: CreateCompanyHistoryEventDto) {
+    const { period, text, ...eventData } = dto;
     const result = await this.prisma.$transaction(async (tx) => {
-      if (dto.orderIndex === undefined) {
+      if (eventData.orderIndex === undefined) {
         const max = await tx.companyHistoryEvent.aggregate({ _max: { orderIndex: true } });
-        dto.orderIndex = (max._max.orderIndex ?? 0) + 1;
+        eventData.orderIndex = (max._max.orderIndex ?? 0) + 1;
       }
       return tx.companyHistoryEvent.create({
         data: {
-          ...dto,
+          ...eventData,
           translations: {
-            create: [{ lang: Language.VI, period: dto.period, text: dto.text }],
+            create: [{ lang: Language.VI, period, text }],
           },
         },
+        include: { translations: true },
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     await this.invalidateAboutCache();
@@ -415,25 +466,42 @@ export class AboutService {
   }
 
   async updateHistoryEvent(id: string, dto: UpdateCompanyHistoryEventDto) {
-    const existing = await this.prisma.companyHistoryEvent.findUnique({ where: { id } });
+    const existing = await this.prisma.companyHistoryEvent.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
     if (!existing) {
       throw new NotFoundException({
         message: AppMessages.HISTORY_EVENT.NOT_FOUND,
         errorCode: 'HISTORY_EVENT_NOT_FOUND',
       });
     }
-    const result = await this.prisma.companyHistoryEvent.update({ where: { id }, data: dto });
+    const currentViTranslation = existing.translations.find((t) => t.lang === Language.VI);
+    const { period, text, ...eventData } = dto;
+    await this.prisma.companyHistoryEvent.update({ where: { id }, data: eventData });
 
-    if (dto.period || dto.text) {
+    if (period !== undefined || text !== undefined) {
       await this.prisma.companyHistoryEventTranslation.upsert({
         where: { eventId_lang: { eventId: id, lang: Language.VI } },
-        update: { period: dto.period ?? existing.period, text: dto.text ?? existing.text },
-        create: { eventId: id, lang: Language.VI, period: dto.period ?? existing.period, text: dto.text ?? existing.text },
+        update: { period: period ?? currentViTranslation?.period, text: text ?? currentViTranslation?.text },
+        create: {
+          eventId: id,
+          lang: Language.VI,
+          period: period ?? currentViTranslation?.period ?? '',
+          text: text ?? currentViTranslation?.text ?? '',
+        },
       });
     }
 
     await this.invalidateAboutCache();
-    return result;
+
+    const updated = await this.prisma.companyHistoryEvent.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
+    const transMap = new Map(updated!.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(Language.VI);
+    return { ...updated!, period: trans?.period || '', text: trans?.text || '' };
   }
 
   async upsertHistoryEventTranslation(id: string, dto: UpsertHistoryEventTranslationDto) {
@@ -511,9 +579,9 @@ export class AboutService {
       const trans = transMap.get(lang) ?? transMap.get(Language.VI);
       return {
         ...item,
-        title: trans?.title ?? item.title,
-        addressLabel: trans?.addressLabel ?? item.addressLabel,
-        address: trans?.address ?? item.address,
+        title: trans?.title || '',
+        addressLabel: trans?.addressLabel || '',
+        address: trans?.address || '',
       };
     });
 
@@ -525,28 +593,29 @@ export class AboutService {
   }
 
   async createCompanyLocation(dto: CreateCompanyLocationDto) {
-    const processedDto = { ...dto };
-    if (dto.mapUrl !== undefined) {
-      processedDto.mapUrl = this.extractMapUrl(dto.mapUrl);
+    const { title, addressLabel, address, ...locationData } = dto;
+    if (locationData.mapUrl !== undefined) {
+      locationData.mapUrl = this.extractMapUrl(locationData.mapUrl);
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      if (processedDto.orderIndex === undefined) {
+      if (locationData.orderIndex === undefined) {
         const max = await tx.companyLocation.aggregate({ _max: { orderIndex: true } });
-        processedDto.orderIndex = (max._max.orderIndex ?? 0) + 1;
+        locationData.orderIndex = (max._max.orderIndex ?? 0) + 1;
       }
       return tx.companyLocation.create({
         data: {
-          ...processedDto,
+          ...locationData,
           translations: {
             create: [{
               lang: Language.VI,
-              title: processedDto.title,
-              addressLabel: processedDto.addressLabel,
-              address: processedDto.address,
+              title,
+              addressLabel,
+              address,
             }],
           },
         },
+        include: { translations: true },
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
@@ -555,41 +624,57 @@ export class AboutService {
   }
 
   async updateCompanyLocation(id: string, dto: UpdateCompanyLocationDto) {
-    const existing = await this.prisma.companyLocation.findUnique({ where: { id } });
+    const existing = await this.prisma.companyLocation.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
     if (!existing) {
       throw new NotFoundException({
         message: AppMessages.COMPANY_LOCATION.NOT_FOUND,
         errorCode: 'COMPANY_LOCATION_NOT_FOUND',
       });
     }
+    const currentViTranslation = existing.translations.find((t) => t.lang === Language.VI);
 
-    const processedDto = { ...dto };
-    if (dto.mapUrl !== undefined) {
-      processedDto.mapUrl = this.extractMapUrl(dto.mapUrl);
+    const { title, addressLabel, address, ...locationData } = dto;
+    if (locationData.mapUrl !== undefined) {
+      locationData.mapUrl = this.extractMapUrl(locationData.mapUrl);
     }
 
-    const result = await this.prisma.companyLocation.update({ where: { id }, data: processedDto });
+    await this.prisma.companyLocation.update({ where: { id }, data: locationData });
 
-    if (dto.title || dto.addressLabel || dto.address) {
+    if (title !== undefined || addressLabel !== undefined || address !== undefined) {
       await this.prisma.companyLocationTranslation.upsert({
         where: { locationId_lang: { locationId: id, lang: Language.VI } },
         update: {
-          title: dto.title ?? existing.title,
-          addressLabel: dto.addressLabel ?? existing.addressLabel,
-          address: dto.address ?? existing.address,
+          title: title ?? currentViTranslation?.title,
+          addressLabel: addressLabel ?? currentViTranslation?.addressLabel,
+          address: address ?? currentViTranslation?.address,
         },
         create: {
           locationId: id,
           lang: Language.VI,
-          title: dto.title ?? existing.title,
-          addressLabel: dto.addressLabel ?? existing.addressLabel,
-          address: dto.address ?? existing.address,
+          title: title ?? currentViTranslation?.title ?? '',
+          addressLabel: addressLabel ?? currentViTranslation?.addressLabel ?? '',
+          address: address ?? currentViTranslation?.address ?? '',
         },
       });
     }
 
     await this.invalidateAboutCache();
-    return result;
+
+    const updated = await this.prisma.companyLocation.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
+    const transMap = new Map(updated!.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(Language.VI);
+    return {
+      ...updated!,
+      title: trans?.title || '',
+      addressLabel: trans?.addressLabel || '',
+      address: trans?.address || '',
+    };
   }
 
   async upsertCompanyLocationTranslation(id: string, dto: UpsertCompanyLocationTranslationDto) {

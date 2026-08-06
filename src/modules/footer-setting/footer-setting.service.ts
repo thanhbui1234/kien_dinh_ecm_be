@@ -46,16 +46,21 @@ export class FooterSettingService {
       setting = await this.prisma.footerSetting.create({
         data: {
           id: 'singleton',
-          introText: 'Công ty Cổ Phần Thanh Bằng tự hào là một trong những công ty uy tín nhất hiện nay và sẵn sàng cam kết với khách hàng về các vấn đề chất lượng, nguồn gốc xuất xứ của sản phẩm cũng như các dịch vụ đi kèm khác.',
           facebookUrl: 'https://www.facebook.com/ThanhBangNamDinh',
           youtubeUrl: 'https://www.youtube.com/@congtythanhbang1735',
           salesPhone: '0943.67.68.69',
           feedbackPhone: '0914 161 122',
           warrantyPhone: '0912 01 77 55',
           email: 'maygachbetongtb@gmail.com',
-          address: 'Công Ty Cổ Phần Thanh Bằng, Xuân Trường, Ninh Bình 420000, Việt Nam',
-          customerSupportTitle: 'HỖ TRỢ KHÁCH HÀNG',
-          customerSupportLinks: DEFAULT_CUSTOMER_SUPPORT_LINKS as unknown as Prisma.InputJsonValue,
+          translations: {
+            create: [{
+              lang: Language.VI,
+              introText: 'Công ty Cổ Phần Thanh Bằng tự hào là một trong những công ty uy tín nhất hiện nay và sẵn sàng cam kết với khách hàng về các vấn đề chất lượng, nguồn gốc xuất xứ của sản phẩm cũng như các dịch vụ đi kèm khác.',
+              address: 'Công Ty Cổ Phần Thanh Bằng, Xuân Trường, Ninh Bình 420000, Việt Nam',
+              customerSupportTitle: 'HỖ TRỢ KHÁCH HÀNG',
+              customerSupportLinks: DEFAULT_CUSTOMER_SUPPORT_LINKS as unknown as Prisma.InputJsonValue,
+            }],
+          },
         },
         include: { translations: true },
       });
@@ -65,10 +70,10 @@ export class FooterSettingService {
     const trans = transMap.get(lang) ?? transMap.get(Language.VI);
     const result = {
       ...setting,
-      introText: trans?.introText ?? setting.introText,
-      address: trans?.address ?? setting.address,
-      customerSupportTitle: trans?.customerSupportTitle ?? setting.customerSupportTitle,
-      customerSupportLinks: trans?.customerSupportLinks ?? setting.customerSupportLinks,
+      introText: trans?.introText || '',
+      address: trans?.address || '',
+      customerSupportTitle: trans?.customerSupportTitle || '',
+      customerSupportLinks: trans?.customerSupportLinks || [],
     };
 
     try {
@@ -79,53 +84,64 @@ export class FooterSettingService {
   }
 
   async updateFooterSetting(dto: UpdateFooterSettingDto) {
-    const updateData: any = { ...dto };
-    if (dto.customerSupportLinks !== undefined) {
-      updateData.customerSupportLinks = dto.customerSupportLinks as unknown as Prisma.InputJsonValue;
-    }
+    const { introText, address, customerSupportTitle, customerSupportLinks, ...settingData } = dto;
 
-    const setting = await this.prisma.footerSetting.upsert({
+    const existing = await this.prisma.footerSetting.findUnique({
       where: { id: 'singleton' },
-      update: updateData,
+      include: { translations: true },
+    });
+    const currentViTranslation = existing?.translations.find((t) => t.lang === Language.VI);
+
+    await this.prisma.footerSetting.upsert({      where: { id: 'singleton' },
+      update: settingData,
       create: {
         id: 'singleton',
-        introText: dto.introText ?? 'Công ty Cổ Phần Thanh Bằng tự hào là một trong những công ty uy tín nhất hiện nay và sẵn sàng cam kết với khách hàng về các vấn đề chất lượng, nguồn gốc xuất xứ của sản phẩm cũng như các dịch vụ đi kèm khác.',
-        facebookUrl: dto.facebookUrl ?? 'https://www.facebook.com/ThanhBangNamDinh',
-        youtubeUrl: dto.youtubeUrl ?? 'https://www.youtube.com/@congtythanhbang1735',
-        instagramUrl: dto.instagramUrl,
-        phone: dto.phone ?? '0943676869',
-        email: dto.email ?? 'maygachbetongtb@gmail.com',
-        address: dto.address ?? 'Công Ty Cổ Phần Thanh Bằng, Xuân Trường, Ninh Bình 420000, Việt Nam',
-        salesPhone: dto.salesPhone ?? '0943.67.68.69',
-        feedbackPhone: dto.feedbackPhone ?? '0914 161 122',
-        warrantyPhone: dto.warrantyPhone ?? '0912 01 77 55',
-        customerSupportTitle: dto.customerSupportTitle ?? 'HỖ TRỢ KHÁCH HÀNG',
-        customerSupportLinks: (dto.customerSupportLinks ?? DEFAULT_CUSTOMER_SUPPORT_LINKS) as unknown as Prisma.InputJsonValue,
+        facebookUrl: settingData.facebookUrl ?? 'https://www.facebook.com/ThanhBangNamDinh',
+        youtubeUrl: settingData.youtubeUrl ?? 'https://www.youtube.com/@congtythanhbang1735',
+        instagramUrl: settingData.instagramUrl,
+        phone: settingData.phone ?? '0943676869',
+        email: settingData.email ?? 'maygachbetongtb@gmail.com',
+        salesPhone: settingData.salesPhone ?? '0943.67.68.69',
+        feedbackPhone: settingData.feedbackPhone ?? '0914 161 122',
+        warrantyPhone: settingData.warrantyPhone ?? '0912 01 77 55',
       },
     });
 
-    if (dto.introText) {
+    if (introText !== undefined || address !== undefined || customerSupportTitle !== undefined || customerSupportLinks !== undefined) {
       await this.prisma.footerSettingTranslation.upsert({
         where: { settingId_lang: { settingId: 'singleton', lang: Language.VI } },
         update: {
-          introText: dto.introText ?? setting.introText,
-          address: dto.address ?? setting.address,
-          customerSupportTitle: dto.customerSupportTitle ?? setting.customerSupportTitle,
-          customerSupportLinks: (dto.customerSupportLinks ?? setting.customerSupportLinks) as Prisma.InputJsonValue,
+          introText: introText ?? currentViTranslation?.introText,
+          address: address ?? currentViTranslation?.address,
+          customerSupportTitle: customerSupportTitle ?? currentViTranslation?.customerSupportTitle,
+          customerSupportLinks: (customerSupportLinks ?? currentViTranslation?.customerSupportLinks) as Prisma.InputJsonValue,
         },
         create: {
           settingId: 'singleton',
           lang: Language.VI,
-          introText: dto.introText ?? setting.introText,
-          address: dto.address ?? setting.address,
-          customerSupportTitle: dto.customerSupportTitle ?? setting.customerSupportTitle,
-          customerSupportLinks: (dto.customerSupportLinks ?? setting.customerSupportLinks) as Prisma.InputJsonValue,
+          introText: introText ?? currentViTranslation?.introText ?? '',
+          address: address ?? currentViTranslation?.address,
+          customerSupportTitle: customerSupportTitle ?? currentViTranslation?.customerSupportTitle,
+          customerSupportLinks: (customerSupportLinks ?? currentViTranslation?.customerSupportLinks ?? DEFAULT_CUSTOMER_SUPPORT_LINKS) as Prisma.InputJsonValue,
         },
       });
     }
 
     await this.invalidateFooterCache();
-    return setting;
+
+    const updated = await this.prisma.footerSetting.findUnique({
+      where: { id: 'singleton' },
+      include: { translations: true },
+    });
+    const transMap = new Map(updated!.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(Language.VI);
+    return {
+      ...updated!,
+      introText: trans?.introText || '',
+      address: trans?.address || '',
+      customerSupportTitle: trans?.customerSupportTitle || '',
+      customerSupportLinks: trans?.customerSupportLinks || [],
+    };
   }
 
   async upsertFooterSettingTranslation(dto: UpsertFooterSettingTranslationDto) {

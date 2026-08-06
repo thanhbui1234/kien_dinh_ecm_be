@@ -18,17 +18,16 @@ export class CategoriesService {
   ) { }
 
   async create(createCategoryDto: CreateCategoryDto) {
-    const { parentId, ...categoryData } = createCategoryDto;
+    const { parentId, name, slug: slugInput, ...categoryData } = createCategoryDto;
 
-    const slug = categoryData.slug?.trim() ? categoryData.slug.trim() : generateSlug(categoryData.name);
-    const data: any = { 
-      ...categoryData, 
-      slug,
+    const slug = slugInput?.trim() ? slugInput.trim() : generateSlug(name);
+    const data: any = {
+      ...categoryData,
       translations: {
         create: [
           {
             lang: Language.VI,
-            name: categoryData.name,
+            name,
             slug,
           },
         ],
@@ -91,10 +90,10 @@ export class CategoriesService {
       const trans = transMap.get(lang) ?? transMap.get(Language.VI);
       return {
         ...cat,
-        name: trans?.name || cat.name,
-        slug: trans?.slug || cat.slug,
+        name: trans?.name || '',
+        slug: trans?.slug || '',
         alternates: {
-          viSlug: transMap.get(Language.VI)?.slug || cat.slug,
+          viSlug: transMap.get(Language.VI)?.slug || '',
           enSlug: transMap.get(Language.EN)?.slug || null,
         },
       };
@@ -118,7 +117,7 @@ export class CategoriesService {
     const category = await this.prisma.category.findFirst({
       where: isUuid(idOrSlug)
         ? { id: idOrSlug }
-        : { OR: [{ slug: idOrSlug }, { translations: { some: { slug: idOrSlug } } }] },
+        : { translations: { some: { slug: idOrSlug } } },
       include: {
         parent: { include: { translations: true } },
         subCategories: { include: { translations: true } },
@@ -134,13 +133,19 @@ export class CategoriesService {
     }
 
     const transMap = new Map(category.translations.map((t) => [t.lang, t]));
-    const trans = transMap.get(lang) ?? transMap.get(Language.VI);
+
+    const localizeCategory = (cat: typeof category, catLang: Language) => {
+      const catTransMap = new Map(cat.translations.map((t) => [t.lang, t]));
+      const catTrans = catTransMap.get(catLang) ?? catTransMap.get(Language.VI);
+      return { ...cat, name: catTrans?.name || '', slug: catTrans?.slug || '' };
+    };
+
     const result = {
-      ...category,
-      name: trans?.name || category.name,
-      slug: trans?.slug || category.slug,
+      ...localizeCategory(category, lang),
+      parent: category.parent ? localizeCategory(category.parent as typeof category, lang) : null,
+      subCategories: category.subCategories.map((sub) => localizeCategory(sub as typeof category, lang)),
       alternates: {
-        viSlug: transMap.get(Language.VI)?.slug || category.slug,
+        viSlug: transMap.get(Language.VI)?.slug || '',
         enSlug: transMap.get(Language.EN)?.slug || null,
       },
     };
@@ -192,9 +197,12 @@ export class CategoriesService {
   }
 
   async update(id: string, updateCategoryDto: UpdateCategoryDto) {
-    const { parentId, ...categoryData } = updateCategoryDto;
+    const { parentId, name, slug: slugInput, ...categoryData } = updateCategoryDto;
 
-    const category = await this.prisma.category.findUnique({ where: { id } });
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
     if (!category) {
       throw new NotFoundException({
         message: AppMessages.CATEGORY.NOT_FOUND,
@@ -202,15 +210,14 @@ export class CategoriesService {
       });
     }
 
-    if (categoryData.slug === '') {
-      delete categoryData.slug;
-    }
+    const currentViTranslation = category.translations.find((t) => t.lang === Language.VI);
+    const slug = slugInput?.trim() ? slugInput.trim() : undefined;
 
-    if (categoryData.slug && categoryData.slug !== category.slug) {
-      const existingSlug = await this.prisma.category.findUnique({
-        where: { slug: categoryData.slug },
+    if (slug && slug !== currentViTranslation?.slug) {
+      const existingSlug = await this.prisma.categoryTranslation.findUnique({
+        where: { lang_slug: { lang: Language.VI, slug } },
       });
-      if (existingSlug) {
+      if (existingSlug && existingSlug.categoryId !== id) {
         throw new ConflictException({
           message: AppMessages.CATEGORY.SLUG_EXISTS,
           errorCode: 'CATEGORY_SLUG_EXISTS',
@@ -244,27 +251,44 @@ export class CategoriesService {
       }
     }
 
-    const updatedCategory = await this.prisma.category.update({
+    await this.prisma.category.update({
       where: { id },
       data,
+    });
+
+    // Sync VI translation if name or slug changed
+    if (name !== undefined || slug !== undefined) {
+      const finalSlug = slug !== undefined ? (slug || generateSlug(name || currentViTranslation?.name || '')) : (currentViTranslation?.slug || generateSlug(name || currentViTranslation?.name || ''));
+      await this.prisma.categoryTranslation.upsert({
+        where: { categoryId_lang: { categoryId: id, lang: Language.VI } },
+        update: { ...(name !== undefined ? { name } : {}), slug: finalSlug },
+        create: { categoryId: id, lang: Language.VI, name: name ?? '', slug: finalSlug },
+      });
+    }
+
+    // Re-fetch after upsert so response has up-to-date translations
+    const updatedCategory = await this.prisma.category.findUnique({
+      where: { id },
       include: { translations: true },
     });
 
-    // Sync VI translation if name changed
-    if (categoryData.name) {
-      const slug = categoryData.slug || generateSlug(categoryData.name);
-      await this.prisma.categoryTranslation.upsert({
-        where: { categoryId_lang: { categoryId: id, lang: Language.VI } },
-        update: { name: categoryData.name, slug },
-        create: { categoryId: id, lang: Language.VI, name: categoryData.name, slug },
-      });
-    }
+    const transMap2 = new Map(updatedCategory!.translations.map((t) => [t.lang, t]));
+    const trans2 = transMap2.get(Language.VI);
 
     try {
       const keys = await this.redis.client.keys('cache:categories:*');
       if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) { }
-    return updatedCategory;
+
+    return {
+      ...updatedCategory!,
+      name: trans2?.name || '',
+      slug: trans2?.slug || '',
+      alternates: {
+        viSlug: transMap2.get(Language.VI)?.slug || '',
+        enSlug: transMap2.get(Language.EN)?.slug || null,
+      },
+    };
   }
 
   async remove(id: string) {

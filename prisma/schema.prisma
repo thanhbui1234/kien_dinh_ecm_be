@@ -29,8 +29,6 @@ model User {
 
 model Category {
   id              String                @id @default(uuid())
-  name            String
-  slug            String                @unique
   orderIndex      Int                   @default(0)
   status          Boolean               @default(true)
   parentId        String?
@@ -60,8 +58,6 @@ model CategoryTranslation {
 
 model Product {
   id              String               @id @default(uuid())
-  name            String
-  slug            String               @unique
   price           Float?
   thumbnailUrl    String
   isFeatured      Boolean              @default(false)
@@ -79,7 +75,6 @@ model Product {
   projectMappings ProjectProduct[]
   translations    ProductTranslation[]
 
-  @@index([name])
   @@index([categoryId, status])
   @@index([isFeatured, status])
 }
@@ -104,10 +99,6 @@ model ProductTranslation {
 
 model ProductDetail {
   productId      String   @id
-  contentDetail  String
-  specifications Json
-  seoMeta        Json?
-  features       Json?
   videoUrls      String[] @default([])
   product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
@@ -125,9 +116,6 @@ model ProductImage {
 
 model Project {
   id          String               @id @default(uuid())
-  name        String
-  slug        String               @unique
-  description String               @db.VarChar(500)
   coverImage  String
   status      Boolean              @default(true)
   createdAt   DateTime             @default(now())
@@ -158,7 +146,6 @@ model ProjectTranslation {
 
 model ProjectDetail {
   projectId     String   @id
-  contentDetail String
   images        String[] @default([])
   videoUrls     String[] @default([])
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -202,9 +189,6 @@ model ContactRequest {
 
 model JobPost {
   id              String               @id @default(uuid())
-  title           String
-  slug            String               @unique
-  salary          String               @default("Cạnh tranh")
   status          Boolean              @default(true)
   createdAt       DateTime             @default(now())
   detail          JobPostDetail?
@@ -233,15 +217,12 @@ model JobPostDetail {
   jobId     String   @unique
   createdAt DateTime @default(now())
   id        String   @id @default(cuid())
-  sections  Json
   updatedAt DateTime @updatedAt
   job       JobPost  @relation(fields: [jobId], references: [id], onDelete: Cascade)
 }
 
 model CompanyInfo {
   id           String                   @id @default(uuid())
-  label        String
-  value        String
   imageUrl     String?
   orderIndex   Int                      @default(0)
   translations CompanyInfoTranslation[]
@@ -263,9 +244,6 @@ model CompanyInfoTranslation {
 
 model Facility {
   id           String                @id @default(uuid())
-  country      String
-  name         String
-  address      String
   phone        String
   imageUrl     String?
   orderIndex   Int                   @default(0)
@@ -295,10 +273,8 @@ model SystemSetting {
 
 model CompanySlogan {
   id           String                    @id @default(uuid())
-  title        String
   icon         String
   orderIndex   Int                       @default(0)
-  description  String?
   translations CompanySloganTranslation[]
 
   @@index([orderIndex])
@@ -322,9 +298,7 @@ model Banner {
   orderIndex   Int                   @default(0)
   status       Boolean               @default(true)
   createdAt    DateTime              @default(now())
-  description  String?
   link         String?
-  title        String?
   translations BannerTranslation[]
 
   @@index([status, orderIndex])
@@ -344,7 +318,6 @@ model BannerTranslation {
 
 model CompanyProfile {
   id           String                       @id @default("singleton")
-  introHtml    String                       @default("")
   thumbnailUrl String?
   translations CompanyProfileTranslation[]
 }
@@ -362,16 +335,14 @@ model CompanyProfileTranslation {
 
 model CompanyHistoryEvent {
   id           String                          @id @default(uuid())
-  period       String
   year         String
-  text         String
   imageUrl     String?
   orderIndex   Int                             @default(0)
   createdAt    DateTime                        @default(now())
   updatedAt    DateTime                        @updatedAt
   translations CompanyHistoryEventTranslation[]
 
-  @@index([period, orderIndex])
+  @@index([year, orderIndex])
 }
 
 model CompanyHistoryEventTranslation {
@@ -388,9 +359,6 @@ model CompanyHistoryEventTranslation {
 
 model CompanyLocation {
   id            String                       @id @default(uuid())
-  title         String
-  addressLabel  String
-  address       String
   directionsUrl String?
   mapUrl        String?
   orderIndex    Int                          @default(0)
@@ -422,13 +390,9 @@ enum LeadPriority {
 
 model ContactSetting {
   id           String                        @id @default("singleton")
-  title        String                        @default("Liên hệ với chúng tôi")
-  description  String                        @default("Chúng tôi luôn sẵn sàng lắng nghe và giải đáp mọi thắc mắc của bạn về sản phẩm và dịch vụ. Hãy để lại thông tin, đội ngũ tư vấn sẽ liên hệ với bạn trong thời gian sớm nhất.")
   hotline      String                        @default("0374 864 110")
   zalo         String                        @default("0374 864 110")
   email        String                        @default("info@kiendinhecm.com")
-  address      String?
-  workingHours String?
   mapUrl       String?
   updatedAt    DateTime                      @updatedAt
   translations ContactSettingTranslation[]
@@ -450,18 +414,14 @@ model ContactSettingTranslation {
 
 model FooterSetting {
   id                   String                     @id @default("singleton")
-  introText            String                     @default("Công ty Cổ Phần Thanh Bằng tự hào là một trong những công ty uy tín nhất hiện nay và sẵn sàng cam kết với khách hàng về các vấn đề chất lượng, nguồn gốc xuất xứ của sản phẩm cũng như các dịch vụ đi kèm khác.")
   facebookUrl          String?                    @default("https://www.facebook.com/ThanhBangNamDinh")
   youtubeUrl           String?                    @default("https://www.youtube.com/@congtythanhbang1735")
   instagramUrl         String?
   phone                String?                    @default("0943676869")
   email                String?                    @default("maygachbetongtb@gmail.com")
-  address              String?                    @default("Công Ty Cổ Phần Thanh Bằng, Xuân Trường, Ninh Bình 420000, Việt Nam")
   salesPhone           String?                    @default("0943.67.68.69")
   feedbackPhone        String?                    @default("0914 161 122")
   warrantyPhone        String?                    @default("0912 01 77 55")
-  customerSupportTitle String?                    @default("HỖ TRỢ KHÁCH HÀNG")
-  customerSupportLinks Json?
   updatedAt            DateTime                   @updatedAt
   translations         FooterSettingTranslation[]
 }

@@ -62,6 +62,17 @@ export class SettingsService {
   }
 
   // --- COMPANY SLOGANS ---
+  private async invalidateSloganCache() {
+    try {
+      const keys = await this.redis.client.keys(CACHE_KEYS.SETTINGS.LIST_PREFIX);
+      if (keys.length > 0) await this.redis.client.del(...keys);
+    } catch (e) {}
+    try {
+      const aiKeys = await this.redis.client.keys('ai:tool:getAboutCompany:*');
+      if (aiKeys.length > 0) await this.redis.client.del(...aiKeys);
+    } catch (e) {}
+  }
+
   async getSlogans(lang: Language = Language.VI) {
     const cacheKey = CACHE_KEYS.SETTINGS.COMPANY_SLOGANS(lang);
     try {
@@ -79,8 +90,8 @@ export class SettingsService {
       const trans = transMap.get(lang) ?? transMap.get(Language.VI);
       return {
         ...slogan,
-        title: trans?.title ?? slogan.title,
-        description: trans?.description ?? slogan.description,
+        title: trans?.title || '',
+        description: trans?.description || '',
       };
     });
 
@@ -92,51 +103,67 @@ export class SettingsService {
   }
 
   async createSlogan(dto: SloganDto) {
+    const { title, description, ...sloganData } = dto;
     const result = await this.prisma.$transaction(async (tx) => {
-      if (dto.orderIndex === undefined) {
+      if (sloganData.orderIndex === undefined) {
         const maxOrder = await tx.companySlogan.aggregate({ _max: { orderIndex: true } });
-        dto.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
+        sloganData.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
       }
       return tx.companySlogan.create({
         data: {
-          ...dto,
+          ...sloganData,
           translations: {
-            create: [{ lang: Language.VI, title: dto.title, description: dto.description }],
+            create: [{ lang: Language.VI, title, description }],
           },
         },
+        include: { translations: true },
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-    try {
-      const keys = await this.redis.client.keys(CACHE_KEYS.SETTINGS.LIST_PREFIX);
-      if (keys.length > 0) await this.redis.client.del(...keys);
-    } catch (e) {}
+    await this.invalidateSloganCache();
     return result;
   }
 
   async updateSlogan(id: string, dto: UpdateSloganDto) {
-    const existing = await this.prisma.companySlogan.findUnique({ where: { id } });
+    const existing = await this.prisma.companySlogan.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
     if (!existing) {
       throw new NotFoundException({
         message: AppMessages.COMPANY_SLOGAN.NOT_FOUND,
         errorCode: 'SLOGAN_NOT_FOUND',
       });
     }
-    const result = await this.prisma.companySlogan.update({ where: { id }, data: dto as any });
+    const currentViTranslation = existing.translations.find((t) => t.lang === Language.VI);
+    const { title, description, ...sloganData } = dto;
+    await this.prisma.companySlogan.update({ where: { id }, data: sloganData });
 
-    if (dto.title || dto.description !== undefined) {
+    if (title !== undefined || description !== undefined) {
       await this.prisma.companySloganTranslation.upsert({
         where: { sloganId_lang: { sloganId: id, lang: Language.VI } },
-        update: { title: dto.title ?? existing.title, description: dto.description ?? existing.description },
-        create: { sloganId: id, lang: Language.VI, title: dto.title ?? existing.title, description: dto.description ?? existing.description },
+        update: {
+          title: title ?? currentViTranslation?.title,
+          description: description !== undefined ? description : currentViTranslation?.description,
+        },
+        create: {
+          sloganId: id,
+          lang: Language.VI,
+          title: title ?? currentViTranslation?.title ?? '',
+          description: description ?? currentViTranslation?.description,
+        },
       });
     }
 
-    try {
-      const keys = await this.redis.client.keys(CACHE_KEYS.SETTINGS.LIST_PREFIX);
-      if (keys.length > 0) await this.redis.client.del(...keys);
-    } catch (e) {}
-    return result;
+    await this.invalidateSloganCache();
+
+    const updated = await this.prisma.companySlogan.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
+    const transMap = new Map(updated!.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(Language.VI);
+    return { ...updated!, title: trans?.title || '', description: trans?.description || '' };
   }
 
   async upsertSloganTranslation(id: string, dto: UpsertCompanySloganTranslationDto) {
@@ -165,10 +192,7 @@ export class SettingsService {
       throw error;
     }
 
-    try {
-      const keys = await this.redis.client.keys(CACHE_KEYS.SETTINGS.LIST_PREFIX);
-      if (keys.length > 0) await this.redis.client.del(...keys);
-    } catch (e) {}
+    await this.invalidateSloganCache();
     return translation;
   }
 
@@ -181,19 +205,13 @@ export class SettingsService {
         }),
       ),
     );
-    try {
-      const keys = await this.redis.client.keys(CACHE_KEYS.SETTINGS.LIST_PREFIX);
-      if (keys.length > 0) await this.redis.client.del(...keys);
-    } catch (e) {}
+    await this.invalidateSloganCache();
     return result;
   }
 
   async deleteSlogan(id: string) {
     const result = await this.prisma.companySlogan.delete({ where: { id } });
-    try {
-      const keys = await this.redis.client.keys(CACHE_KEYS.SETTINGS.LIST_PREFIX);
-      if (keys.length > 0) await this.redis.client.del(...keys);
-    } catch (e) {}
+    await this.invalidateSloganCache();
     return result;
   }
 
@@ -216,8 +234,8 @@ export class SettingsService {
       const trans = transMap.get(lang) ?? transMap.get(Language.VI);
       return {
         ...banner,
-        title: trans?.title ?? banner.title,
-        description: trans?.description ?? banner.description,
+        title: trans?.title || '',
+        description: trans?.description || '',
       };
     });
 
@@ -229,18 +247,20 @@ export class SettingsService {
   }
 
   async createBanner(dto: BannerDto) {
+    const { title, description, ...bannerData } = dto;
     const result = await this.prisma.$transaction(async (tx) => {
-      if (dto.orderIndex === undefined) {
+      if (bannerData.orderIndex === undefined) {
         const maxOrder = await tx.banner.aggregate({ _max: { orderIndex: true } });
-        dto.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
+        bannerData.orderIndex = (maxOrder._max.orderIndex || 0) + 1;
       }
       return tx.banner.create({
         data: {
-          ...(dto as any),
+          ...bannerData,
           translations: {
-            create: [{ lang: Language.VI, title: (dto as any).title, description: (dto as any).description }],
+            create: [{ lang: Language.VI, title, description }],
           },
         },
+        include: { translations: true },
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
@@ -252,20 +272,33 @@ export class SettingsService {
   }
 
   async updateBanner(id: string, dto: UpdateBannerDto) {
-    const existing = await this.prisma.banner.findUnique({ where: { id } });
+    const existing = await this.prisma.banner.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
     if (!existing) {
       throw new NotFoundException({
         message: AppMessages.BANNER.NOT_FOUND,
         errorCode: 'BANNER_NOT_FOUND',
       });
     }
-    const result = await this.prisma.banner.update({ where: { id }, data: dto as any });
+    const currentViTranslation = existing.translations.find((t) => t.lang === Language.VI);
+    const { title, description, ...bannerData } = dto;
+    await this.prisma.banner.update({ where: { id }, data: bannerData });
 
-    if ((dto as any).title !== undefined || (dto as any).description !== undefined) {
+    if (title !== undefined || description !== undefined) {
       await this.prisma.bannerTranslation.upsert({
         where: { bannerId_lang: { bannerId: id, lang: Language.VI } },
-        update: { title: (dto as any).title ?? existing.title, description: (dto as any).description ?? existing.description },
-        create: { bannerId: id, lang: Language.VI, title: (dto as any).title ?? existing.title, description: (dto as any).description ?? existing.description },
+        update: {
+          title: title !== undefined ? title : currentViTranslation?.title,
+          description: description !== undefined ? description : currentViTranslation?.description,
+        },
+        create: {
+          bannerId: id,
+          lang: Language.VI,
+          title: title ?? currentViTranslation?.title,
+          description: description ?? currentViTranslation?.description,
+        },
       });
     }
 
@@ -273,7 +306,14 @@ export class SettingsService {
       const keys = await this.redis.client.keys(CACHE_KEYS.SETTINGS.BANNERS_PREFIX);
       if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) {}
-    return result;
+
+    const updated = await this.prisma.banner.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
+    const transMap = new Map(updated!.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(Language.VI);
+    return { ...updated!, title: trans?.title || '', description: trans?.description || '' };
   }
 
   async upsertBannerTranslation(id: string, dto: UpsertBannerTranslationDto) {

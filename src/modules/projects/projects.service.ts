@@ -19,19 +19,17 @@ export class ProjectsService {
   ) {}
 
   async create(createProjectDto: CreateProjectDto) {
-    const { contentDetail, productIds, categoryIds, images, videoUrls, ...projectData } = createProjectDto;
+    const { contentDetail, productIds, categoryIds, images, videoUrls, name, slug: slugInput, description, ...projectData } = createProjectDto;
 
-    if (!projectData.slug && projectData.name) {
-      projectData.slug = generateSlug(projectData.name);
-    }
+    let slug = slugInput?.trim() ? slugInput.trim() : generateSlug(name);
 
-    const existingProject = await this.prisma.project.findUnique({
-      where: { slug: projectData.slug },
+    const existingProject = await this.prisma.projectTranslation.findUnique({
+      where: { lang_slug: { lang: Language.VI, slug } },
     });
 
     if (existingProject) {
-      if (!createProjectDto.slug) {
-        projectData.slug = `${projectData.slug}-${Date.now()}`;
+      if (!slugInput) {
+        slug = `${slug}-${Date.now()}`;
       } else {
         throw new ConflictException({
           message: AppMessages.PROJECT.SLUG_EXISTS,
@@ -42,25 +40,23 @@ export class ProjectsService {
 
     const createData: Prisma.ProjectCreateInput = {
       ...projectData,
-      slug: projectData.slug as string,
       translations: {
         create: [
           {
             lang: Language.VI,
-            name: projectData.name,
-            slug: projectData.slug as string,
-            description: projectData.description || '',
+            name,
+            slug,
+            description: description || '',
             contentDetail: contentDetail || '',
           },
         ],
       },
     };
 
-    const hasDetail = !!contentDetail || (images && images.length > 0) || (videoUrls && videoUrls.length > 0);
+    const hasDetail = (images && images.length > 0) || (videoUrls && videoUrls.length > 0);
     if (hasDetail) {
       createData.detail = {
         create: {
-          contentDetail: contentDetail ?? '',
           images: images ?? [],
           videoUrls: videoUrls ?? [],
         },
@@ -110,7 +106,6 @@ export class ProjectsService {
 
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
         { translations: { some: { name: { contains: search, mode: 'insensitive' } } } },
       ];
     }
@@ -146,11 +141,11 @@ export class ProjectsService {
       const trans = transMap.get(lang) ?? transMap.get(Language.VI);
       return {
         ...proj,
-        name: trans?.name || proj.name,
-        slug: trans?.slug || proj.slug,
-        description: trans?.description || proj.description,
+        name: trans?.name || '',
+        slug: trans?.slug || '',
+        description: trans?.description || '',
         alternates: {
-          viSlug: transMap.get(Language.VI)?.slug || proj.slug,
+          viSlug: transMap.get(Language.VI)?.slug || '',
           enSlug: transMap.get(Language.EN)?.slug || null,
         },
       };
@@ -177,7 +172,7 @@ export class ProjectsService {
     const project = await this.prisma.project.findFirst({
       where: isUuid(idOrSlug)
         ? { id: idOrSlug }
-        : { OR: [{ slug: idOrSlug }, { translations: { some: { slug: idOrSlug } } }] },
+        : { translations: { some: { slug: idOrSlug } } },
       include: {
         detail: true,
         translations: true,
@@ -202,14 +197,14 @@ export class ProjectsService {
 
     const formattedProject = {
       id: project.id,
-      name: trans?.name || project.name,
-      slug: trans?.slug || project.slug,
-      description: trans?.description || project.description,
+      name: trans?.name || '',
+      slug: trans?.slug || '',
+      description: trans?.description || '',
       coverImage: project.coverImage,
       status: project.status,
       isFeatured: project.isFeatured,
       createdAt: project.createdAt,
-      detail: { contentDetail: trans?.contentDetail || project.detail?.contentDetail || '' },
+      detail: { contentDetail: trans?.contentDetail || '' },
       images: project.detail?.images ?? [],
       videoUrls: project.detail?.videoUrls ?? [],
       productIds: project.products.map(p => p.productId),
@@ -219,8 +214,8 @@ export class ProjectsService {
         const prodTrans = prodTransMap.get(lang) ?? prodTransMap.get(Language.VI);
         return {
           id: p.product.id,
-          name: prodTrans?.name || p.product.name,
-          slug: prodTrans?.slug || p.product.slug,
+          name: prodTrans?.name || '',
+          slug: prodTrans?.slug || '',
           thumbnailUrl: p.product.thumbnailUrl,
           price: p.product.price,
           isFeatured: p.product.isFeatured,
@@ -231,7 +226,7 @@ export class ProjectsService {
         };
       }),
       alternates: {
-        viSlug: transMap.get(Language.VI)?.slug || project.slug,
+        viSlug: transMap.get(Language.VI)?.slug || '',
         enSlug: transMap.get(Language.EN)?.slug || null,
       },
       translations: project.translations,
@@ -262,7 +257,7 @@ export class ProjectsService {
         update: {
           name: dto.name,
           slug,
-          description: dto.description !== undefined ? dto.description : project.description,
+          description: dto.description !== undefined ? dto.description : undefined,
           contentDetail: dto.contentDetail !== undefined ? dto.contentDetail : undefined,
         },
         create: {
@@ -270,7 +265,7 @@ export class ProjectsService {
           lang: dto.lang,
           name: dto.name,
           slug,
-          description: dto.description || project.description || '',
+          description: dto.description || '',
           contentDetail: dto.contentDetail || '',
         },
       });
@@ -298,7 +293,7 @@ export class ProjectsService {
   async update(id: string, updateProjectDto: UpdateProjectDto) {
     const existing = await this.prisma.project.findUnique({
       where: { id },
-      select: { slug: true },
+      include: { translations: true },
     });
 
     if (!existing) {
@@ -308,13 +303,22 @@ export class ProjectsService {
       });
     }
 
-    const { contentDetail, productIds, categoryIds, images, videoUrls, ...projectData } = updateProjectDto;
+    const currentViTranslation = existing.translations.find((t) => t.lang === Language.VI);
 
-    if (projectData.slug) {
-      const existingProject = await this.prisma.project.findFirst({
-        where: { slug: projectData.slug, id: { not: id } },
+    const { contentDetail, productIds, categoryIds, images, videoUrls, name, slug: slugInput, description, ...projectData } = updateProjectDto;
+
+    let slug: string | undefined;
+    if (name) {
+      slug = generateSlug(name);
+    } else if (slugInput?.trim()) {
+      slug = slugInput.trim();
+    }
+
+    if (slug && slug !== currentViTranslation?.slug) {
+      const existingSlug = await this.prisma.projectTranslation.findUnique({
+        where: { lang_slug: { lang: Language.VI, slug } },
       });
-      if (existingProject) {
+      if (existingSlug && existingSlug.projectId !== id) {
         throw new ConflictException({
           message: AppMessages.PROJECT.SLUG_EXISTS,
           errorCode: 'PROJECT_SLUG_EXISTS',
@@ -326,16 +330,14 @@ export class ProjectsService {
       ...projectData,
     };
 
-    if (contentDetail !== undefined || images !== undefined || videoUrls !== undefined) {
+    if (images !== undefined || videoUrls !== undefined) {
       updateData.detail = {
         upsert: {
           create: {
-            contentDetail: contentDetail ?? '',
             images: images ?? [],
             videoUrls: videoUrls ?? [],
           },
           update: {
-            ...(contentDetail !== undefined && { contentDetail }),
             ...(images !== undefined && { images }),
             ...(videoUrls !== undefined && { videoUrls }),
           },
@@ -361,34 +363,62 @@ export class ProjectsService {
       };
     }
 
-    const result = await this.prisma.project.update({
+    await this.prisma.project.update({
       where: { id },
       data: updateData,
+    });
+
+    if (name !== undefined || slug !== undefined || description !== undefined || contentDetail !== undefined) {
+      const finalSlug = slug !== undefined ? (slug || generateSlug(name || currentViTranslation?.name || '')) : (currentViTranslation?.slug || generateSlug(name || currentViTranslation?.name || ''));
+      await this.prisma.projectTranslation.upsert({
+        where: { projectId_lang: { projectId: id, lang: Language.VI } },
+        update: {
+          ...(name !== undefined ? { name } : {}),
+          slug: finalSlug,
+          description: description !== undefined ? description : undefined,
+          contentDetail: contentDetail !== undefined ? contentDetail : undefined,
+        },
+        create: {
+          projectId: id,
+          lang: Language.VI,
+          name: name ?? currentViTranslation?.name ?? '',
+          slug: finalSlug,
+          description: description ?? currentViTranslation?.description ?? '',
+          contentDetail: contentDetail ?? '',
+        },
+      });
+    }
+
+    // Re-fetch after upsert so response has up-to-date translations
+    const result = await this.prisma.project.findUnique({
+      where: { id },
       include: { translations: true },
     });
 
-    // Update VI translation if name changed
-    if (projectData.name) {
-      const slug = projectData.slug || generateSlug(projectData.name);
-      await this.prisma.projectTranslation.upsert({
-        where: { projectId_lang: { projectId: id, lang: Language.VI } },
-        update: { name: projectData.name, slug, description: projectData.description || result.description, contentDetail: contentDetail !== undefined ? contentDetail : undefined },
-        create: { projectId: id, lang: Language.VI, name: projectData.name, slug, description: projectData.description || result.description || '', contentDetail: contentDetail || '' },
-      });
-    }
+    const transMap2 = new Map(result!.translations.map((t) => [t.lang, t]));
+    const trans2 = transMap2.get(Language.VI);
 
     try {
       const keys = await this.redis.client.keys('cache:project*');
       if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) {}
 
-    return result;
+    return {
+      ...result!,
+      name: trans2?.name || '',
+      slug: trans2?.slug || '',
+      description: trans2?.description || '',
+      alternates: {
+        viSlug: transMap2.get(Language.VI)?.slug || '',
+        enSlug: transMap2.get(Language.EN)?.slug || null,
+      },
+    };
   }
 
   async remove(id: string) {
     const existing = await this.prisma.project.findUnique({
       where: { id },
-      select: { slug: true },
+      select: { id: true },
     });
 
     if (!existing) {

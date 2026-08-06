@@ -3,8 +3,9 @@ import { PrismaService } from '../../database/prisma.service';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadStatusDto } from './dto/update-lead-status.dto';
 import { GetLeadsFilterDto } from './dto/get-leads-filter.dto';
+import { AppMessages } from '../../common/constants/messages.constant';
 import { PageMetaDto, PageDto } from '../../common/dto/pagination.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, Language } from '@prisma/client';
 
 @Injectable()
 export class LeadsService {
@@ -67,19 +68,39 @@ export class LeadsService {
       }
     }
 
-    const [leads, total] = await this.prisma.$transaction([
+    const [rawLeads, total] = await this.prisma.$transaction([
       this.prisma.contactRequest.findMany({
         where,
         skip,
         take: limit,
         orderBy,
         include: {
-          product: { select: { id: true, name: true } },
-          job: { select: { id: true, title: true } },
+          product: {
+            select: {
+              id: true,
+              translations: { where: { lang: Language.VI }, take: 1, select: { name: true } },
+            },
+          },
+          job: {
+            select: {
+              id: true,
+              translations: { where: { lang: Language.VI }, take: 1, select: { title: true } },
+            },
+          },
         },
       }),
       this.prisma.contactRequest.count({ where }),
     ]);
+
+    const leads = rawLeads.map((lead) => ({
+      ...lead,
+      product: lead.product
+        ? { id: lead.product.id, name: lead.product.translations[0]?.name }
+        : null,
+      job: lead.job
+        ? { id: lead.job.id, title: lead.job.translations[0]?.title }
+        : null,
+    }));
 
     const pageMetaDto = new PageMetaDto(total, filterDto, leads.length);
     return new PageDto(leads, pageMetaDto);
@@ -89,7 +110,7 @@ export class LeadsService {
     const existing = await this.prisma.contactRequest.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException({
-        message: 'Không tìm thấy yêu cầu liên hệ',
+        message: AppMessages.LEAD.NOT_FOUND,
         errorCode: 'LEAD_NOT_FOUND',
       });
     }

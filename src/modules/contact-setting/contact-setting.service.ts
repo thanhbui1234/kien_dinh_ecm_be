@@ -44,11 +44,16 @@ export class ContactSettingService {
       setting = await this.prisma.contactSetting.create({
         data: {
           id: 'singleton',
-          title: 'Liên hệ với chúng tôi',
-          description: 'Chúng tôi luôn sẵn sàng lắng nghe và giải đáp mọi thắc mắc của bạn về sản phẩm và dịch vụ. Hãy để lại thông tin, đội ngũ tư vấn sẽ liên hệ với bạn trong thời gian sớm nhất.',
           hotline: '0374 864 110',
           zalo: '0374 864 110',
           email: 'info@kiendinhecm.com',
+          translations: {
+            create: [{
+              lang: Language.VI,
+              title: 'Liên hệ với chúng tôi',
+              description: 'Chúng tôi luôn sẵn sàng lắng nghe và giải đáp mọi thắc mắc của bạn về sản phẩm và dịch vụ. Hãy để lại thông tin, đội ngũ tư vấn sẽ liên hệ với bạn trong thời gian sớm nhất.',
+            }],
+          },
         },
         include: { translations: true },
       });
@@ -58,10 +63,10 @@ export class ContactSettingService {
     const trans = transMap.get(lang) ?? transMap.get(Language.VI);
     const result = {
       ...setting,
-      title: trans?.title ?? setting.title,
-      description: trans?.description ?? setting.description,
-      address: trans?.address ?? setting.address,
-      workingHours: trans?.workingHours ?? setting.workingHours,
+      title: trans?.title || '',
+      description: trans?.description || '',
+      address: trans?.address || '',
+      workingHours: trans?.workingHours || '',
     };
 
     try {
@@ -72,49 +77,64 @@ export class ContactSettingService {
   }
 
   async updateContactSetting(dto: UpdateContactSettingDto) {
-    const processedDto = { ...dto };
-    if (dto.mapUrl !== undefined) {
-      processedDto.mapUrl = this.extractMapUrl(dto.mapUrl);
+    const { title, description, address, workingHours, ...settingData } = dto;
+    if (settingData.mapUrl !== undefined) {
+      settingData.mapUrl = this.extractMapUrl(settingData.mapUrl);
     }
 
-    const setting = await this.prisma.contactSetting.upsert({
+    const existing = await this.prisma.contactSetting.findUnique({
       where: { id: 'singleton' },
-      update: { ...processedDto },
+      include: { translations: true },
+    });
+    const currentViTranslation = existing?.translations.find((t) => t.lang === Language.VI);
+
+    await this.prisma.contactSetting.upsert({
+      where: { id: 'singleton' },
+      update: settingData,
       create: {
         id: 'singleton',
-        title: processedDto.title ?? 'Liên hệ với chúng tôi',
-        description: processedDto.description ?? 'Chúng tôi luôn sẵn sàng lắng nghe và giải đáp mọi thắc mắc của bạn về sản phẩm và dịch vụ. Hãy để lại thông tin, đội ngũ tư vấn sẽ liên hệ với bạn trong thời gian sớm nhất.',
-        hotline: processedDto.hotline ?? '094320676869',
-        zalo: processedDto.zalo ?? '094320676869',
-        email: processedDto.email ?? 'info@kiendinhecm.com',
-        address: processedDto.address,
-        workingHours: processedDto.workingHours,
-        mapUrl: processedDto.mapUrl,
+        hotline: settingData.hotline ?? '094320676869',
+        zalo: settingData.zalo ?? '094320676869',
+        email: settingData.email ?? 'info@kiendinhecm.com',
+        mapUrl: settingData.mapUrl,
       },
     });
 
-    if (processedDto.title || processedDto.description) {
+    if (title !== undefined || description !== undefined || address !== undefined || workingHours !== undefined) {
       await this.prisma.contactSettingTranslation.upsert({
         where: { settingId_lang: { settingId: 'singleton', lang: Language.VI } },
         update: {
-          title: processedDto.title ?? setting.title,
-          description: processedDto.description ?? setting.description,
-          address: processedDto.address ?? setting.address,
-          workingHours: processedDto.workingHours ?? setting.workingHours,
+          title: title ?? currentViTranslation?.title,
+          description: description ?? currentViTranslation?.description,
+          address: address ?? currentViTranslation?.address,
+          workingHours: workingHours ?? currentViTranslation?.workingHours,
         },
         create: {
           settingId: 'singleton',
           lang: Language.VI,
-          title: processedDto.title ?? setting.title,
-          description: processedDto.description ?? setting.description,
-          address: processedDto.address ?? setting.address,
-          workingHours: processedDto.workingHours ?? setting.workingHours,
+          title: title ?? currentViTranslation?.title ?? 'Liên hệ với chúng tôi',
+          description: description ?? currentViTranslation?.description ?? '',
+          address: address ?? currentViTranslation?.address,
+          workingHours: workingHours ?? currentViTranslation?.workingHours,
         },
       });
     }
 
     await this.invalidateContactCache();
-    return setting;
+
+    const updated = await this.prisma.contactSetting.findUnique({
+      where: { id: 'singleton' },
+      include: { translations: true },
+    });
+    const transMap = new Map(updated!.translations.map((t) => [t.lang, t]));
+    const trans = transMap.get(Language.VI);
+    return {
+      ...updated!,
+      title: trans?.title || '',
+      description: trans?.description || '',
+      address: trans?.address || '',
+      workingHours: trans?.workingHours || '',
+    };
   }
 
   async upsertContactSettingTranslation(dto: UpsertContactSettingTranslationDto) {

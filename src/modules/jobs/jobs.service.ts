@@ -19,19 +19,17 @@ export class JobsService {
   ) { }
 
   async create(createJobDto: CreateJobDto) {
-    const { sections, ...jobData } = createJobDto;
+    const { sections, title, slug: slugInput, salary, ...jobData } = createJobDto;
 
-    if (!jobData.slug && jobData.title) {
-      jobData.slug = generateSlug(jobData.title);
-    }
+    let slug = slugInput?.trim() ? slugInput.trim() : generateSlug(title);
 
-    const existingJob = await this.prisma.jobPost.findUnique({
-      where: { slug: jobData.slug },
+    const existingJob = await this.prisma.jobPostTranslation.findUnique({
+      where: { lang_slug: { lang: Language.VI, slug } },
     });
 
     if (existingJob) {
-      if (!createJobDto.slug) {
-        jobData.slug = `${jobData.slug}-${Date.now()}`;
+      if (!slugInput) {
+        slug = `${slug}-${Date.now()}`;
       } else {
         throw new ConflictException({
           message: AppMessages.JOB.SLUG_EXISTS,
@@ -42,20 +40,13 @@ export class JobsService {
 
     const createData: Prisma.JobPostCreateInput = {
       ...jobData,
-      slug: jobData.slug as string,
-      detail: {
-        create: {
-          sections: sections || [],
-        },
-      },
       translations: {
         create: [
           {
-
             lang: Language.VI,
-            title: jobData.title,
-            slug: jobData.slug as string,
-            salary: jobData.salary || 'Cạnh tranh',
+            title,
+            slug,
+            salary: salary || 'Cạnh tranh',
             sections: sections || [],
           },
         ],
@@ -89,7 +80,6 @@ export class JobsService {
 
     if (search) {
       where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
         { translations: { some: { title: { contains: search, mode: 'insensitive' } } } },
       ];
     }
@@ -121,11 +111,11 @@ export class JobsService {
       const trans = transMap.get(lang) ?? transMap.get(Language.VI);
       return {
         ...job,
-        title: trans?.title || job.title,
-        slug: trans?.slug || job.slug,
-        salary: trans?.salary || job.salary,
+        title: trans?.title || '',
+        slug: trans?.slug || '',
+        salary: trans?.salary || '',
         alternates: {
-          viSlug: transMap.get(Language.VI)?.slug || job.slug,
+          viSlug: transMap.get(Language.VI)?.slug || '',
           enSlug: transMap.get(Language.EN)?.slug || null,
         },
       };
@@ -152,7 +142,7 @@ export class JobsService {
     const job = await this.prisma.jobPost.findFirst({
       where: isUuid(idOrSlug)
         ? { id: idOrSlug }
-        : { OR: [{ slug: idOrSlug }, { translations: { some: { slug: idOrSlug } } }] },
+        : { translations: { some: { slug: idOrSlug } } },
       include: { detail: true, translations: true },
     });
 
@@ -168,15 +158,14 @@ export class JobsService {
 
     const localizedJob = {
       ...job,
-      title: trans?.title || job.title,
-      slug: trans?.slug || job.slug,
-      salary: trans?.salary || job.salary,
+      title: trans?.title || '',
+      slug: trans?.slug || '',
+      salary: trans?.salary || '',
       detail: {
-        ...job.detail,
-        sections: trans?.sections || job.detail?.sections || [],
+        sections: trans?.sections || [],
       },
       alternates: {
-        viSlug: transMap.get(Language.VI)?.slug || job.slug,
+        viSlug: transMap.get(Language.VI)?.slug || '',
         enSlug: transMap.get(Language.EN)?.slug || null,
       },
     };
@@ -206,7 +195,7 @@ export class JobsService {
         update: {
           title: dto.title,
           slug,
-          salary: dto.salary !== undefined ? dto.salary : job.salary,
+          salary: dto.salary !== undefined ? dto.salary : undefined,
           sections: dto.sections !== undefined ? dto.sections : undefined,
         },
         create: {
@@ -214,7 +203,7 @@ export class JobsService {
           lang: dto.lang,
           title: dto.title,
           slug,
-          salary: dto.salary || job.salary,
+          salary: dto.salary || 'Cạnh tranh',
           sections: dto.sections || [],
         },
       });
@@ -240,7 +229,10 @@ export class JobsService {
   }
 
   async update(id: string, updateJobDto: UpdateJobDto) {
-    const existing = await this.prisma.jobPost.findUnique({ where: { id } });
+    const existing = await this.prisma.jobPost.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
     if (!existing) {
       throw new NotFoundException({
         message: AppMessages.JOB.NOT_FOUND,
@@ -248,13 +240,22 @@ export class JobsService {
       });
     }
 
-    const { sections, ...jobData } = updateJobDto;
+    const currentViTranslation = existing.translations.find((t) => t.lang === Language.VI);
 
-    if (jobData.slug) {
-      const slugCheck = await this.prisma.jobPost.findFirst({
-        where: { slug: jobData.slug, id: { not: id } },
+    const { sections, title, slug: slugInput, salary, ...jobData } = updateJobDto;
+
+    let slug: string | undefined;
+    if (title) {
+      slug = generateSlug(title);
+    } else if (slugInput?.trim()) {
+      slug = slugInput.trim();
+    }
+
+    if (slug && slug !== currentViTranslation?.slug) {
+      const slugCheck = await this.prisma.jobPostTranslation.findUnique({
+        where: { lang_slug: { lang: Language.VI, slug } },
       });
-      if (slugCheck) {
+      if (slugCheck && slugCheck.jobId !== id) {
         throw new ConflictException({
           message: AppMessages.JOB.SLUG_EXISTS,
           errorCode: 'JOB_SLUG_EXISTS',
@@ -266,40 +267,57 @@ export class JobsService {
       ...jobData,
     };
 
-    if (sections !== undefined) {
-      updateData.detail = {
-        upsert: {
-          create: {
-            sections,
-          },
-          update: {
-            sections,
-          },
-        },
-      };
-    }
-
-    const result = await this.prisma.jobPost.update({
+    await this.prisma.jobPost.update({
       where: { id },
       data: updateData,
+    });
+
+    if (title !== undefined || slug !== undefined || salary !== undefined || sections !== undefined) {
+      const finalSlug = slug !== undefined ? (slug || generateSlug(title || currentViTranslation?.title || '')) : (currentViTranslation?.slug || generateSlug(title || currentViTranslation?.title || ''));
+      await this.prisma.jobPostTranslation.upsert({
+        where: { jobId_lang: { jobId: id, lang: Language.VI } },
+        update: {
+          ...(title !== undefined ? { title } : {}),
+          slug: finalSlug,
+          salary: salary !== undefined ? salary : undefined,
+          sections: sections !== undefined ? sections : undefined,
+        },
+        create: {
+          jobId: id,
+          lang: Language.VI,
+          title: title ?? currentViTranslation?.title ?? '',
+          slug: finalSlug,
+          salary: salary ?? currentViTranslation?.salary ?? 'Cạnh tranh',
+          sections: sections ?? [],
+        },
+      });
+    }
+
+    // Re-fetch after upsert and return localized shape matching findOne response
+    const updated = await this.prisma.jobPost.findUnique({
+      where: { id },
       include: { detail: true, translations: true },
     });
 
-    // Update VI translation if title changed
-    if (jobData.title) {
-      const slug = jobData.slug || generateSlug(jobData.title);
-      await this.prisma.jobPostTranslation.upsert({
-        where: { jobId_lang: { jobId: id, lang: Language.VI } },
-        update: { title: jobData.title, slug, salary: jobData.salary || result.salary, sections: sections !== undefined ? sections : undefined },
-        create: { jobId: id, lang: Language.VI, title: jobData.title, slug, salary: jobData.salary || result.salary, sections: sections !== undefined ? sections : undefined },
-      });
-    }
+    const transMap2 = new Map(updated!.translations.map((t) => [t.lang, t]));
+    const trans2 = transMap2.get(Language.VI);
 
     try {
       const keys = await this.redis.client.keys('cache:job*');
       if (keys.length > 0) await this.redis.client.del(...keys);
     } catch (e) { }
-    return result;
+
+    return {
+      ...updated!,
+      title: trans2?.title || '',
+      slug: trans2?.slug || '',
+      salary: trans2?.salary || '',
+      detail: { sections: trans2?.sections || [] },
+      alternates: {
+        viSlug: transMap2.get(Language.VI)?.slug || '',
+        enSlug: transMap2.get(Language.EN)?.slug || null,
+      },
+    };
   }
 
   async remove(id: string) {
