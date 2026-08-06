@@ -216,15 +216,15 @@ export class SettingsService {
   }
 
   // --- BANNERS ---
-  async getBanners(lang: Language = Language.VI) {
-    const cacheKey = CACHE_KEYS.SETTINGS.BANNERS(lang);
+  async getBanners(lang: Language = Language.VI, isAll: boolean = false) {
+    const cacheKey = CACHE_KEYS.SETTINGS.BANNERS(lang) + (isAll ? ':all' : '');
     try {
       const cached = await this.redis.client.get(cacheKey);
       if (cached) return cached;
     } catch (e) {}
 
     const banners = await this.prisma.banner.findMany({
-      where: { status: true },
+      where: isAll ? undefined : { status: true },
       orderBy: { orderIndex: 'asc' },
       include: { translations: true },
     });

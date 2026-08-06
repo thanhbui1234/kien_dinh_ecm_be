@@ -158,8 +158,12 @@ export class SettingsController {
   })
   @Public()
   @Get('banners')
-  getBanners(@Query('lang') lang?: Language) {
-    return this.settingsService.getBanners(lang ?? Language.VI);
+  getBanners(
+    @Query('lang') lang?: Language,
+    @Query('isAll') isAll?: string | boolean,
+  ) {
+    const fetchAll = isAll === 'true' || isAll === true;
+    return this.settingsService.getBanners(lang ?? Language.VI, fetchAll);
   }
 
   @ApiOperation({ summary: 'Thêm banner mới' })
